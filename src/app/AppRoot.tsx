@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { type Emotion, type Intensity, emotionOptions, toggleEmotion } from '../domain/checkIn';
+import { type Emotion, type Intensity, emotionOptions } from '../domain/checkIn';
 import { developmentScriptureUnit } from '../domain/content';
 import { createDailyJourney, type DailyJourney } from '../domain/journey';
 import { colors, radius, spacing } from '../ui/theme';
@@ -17,7 +17,10 @@ export function AppRoot() {
 
   const startKnownJourney = () => {
     if (emotions.length === 0) return;
-    setJourney(createDailyJourney({ kind: 'known', emotions, intensity }, new Date()));
+    setJourney(createDailyJourney({
+      kind: 'known',
+      selections: emotions.map((emotion) => ({ emotion, intensity })),
+    }, new Date()));
     setScreen('journey');
   };
 
@@ -50,7 +53,9 @@ export function AppRoot() {
               const selected = emotions.includes(emotion);
               return (
                 <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: selected }} key={emotion}
-                  onPress={() => setEmotions((current) => toggleEmotion(current, emotion))}
+                  onPress={() => setEmotions((current) => current.includes(emotion)
+                    ? current.filter((item) => item !== emotion)
+                    : current.length < 3 ? [...current, emotion] : current)}
                   style={[styles.chip, selected && styles.chipSelected]}>
                   <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{emotion}</Text>
                 </Pressable>
