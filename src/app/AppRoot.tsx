@@ -4,6 +4,8 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { type Emotion, type Intensity, emotionOptions } from '../domain/checkIn';
 import { developmentScriptureUnit } from '../domain/content';
 import { createDailyJourney, type DailyJourney } from '../domain/journey';
+import { createEmotionalArc } from '../domain/arc';
+import { proposeDirection } from '../domain/direction';
 import { colors, radius, spacing } from '../ui/theme';
 
 type Screen = 'welcome' | 'check-in' | 'journey';
@@ -17,15 +19,18 @@ export function AppRoot() {
 
   const startKnownJourney = () => {
     if (emotions.length === 0) return;
-    setJourney(createDailyJourney({
+    const checkIn = {
       kind: 'known',
       selections: emotions.map((emotion) => ({ emotion, intensity })),
-    }, new Date()));
+    } as const;
+    const direction = proposeDirection(checkIn).id;
+    setJourney(createDailyJourney(checkIn, createEmotionalArc(checkIn, direction), new Date()));
     setScreen('journey');
   };
 
   const startUnknownJourney = () => {
-    setJourney(createDailyJourney({ kind: 'unknown' }, new Date()));
+    const checkIn = { kind: 'unknown' } as const;
+    setJourney(createDailyJourney(checkIn, createEmotionalArc(checkIn, 'gentle-awareness'), new Date()));
     setScreen('journey');
   };
 
