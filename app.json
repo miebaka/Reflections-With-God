@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "Reflections with God",
+    "slug": "reflections-with-god",
+    "scheme": "reflections-with-god",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.miebaka.reflectionswithgod"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#F7F3E9",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "package": "com.miebaka.reflectionswithgod",
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
