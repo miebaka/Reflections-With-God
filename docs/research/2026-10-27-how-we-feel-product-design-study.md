@@ -1,6 +1,7 @@
 # How We Feel — Product and Visual Design Study
 
-**Date:** 27 October 2026  
+**Date:** 27 October 2026
+
 **Purpose:** Translate the strongest product and interface principles of *How We Feel* into an original visual direction for *Reflections with God* without copying its brand assets, proprietary emotion map, illustrations, or screen compositions.
 
 ## Research question
@@ -128,4 +129,3 @@ This report therefore supports a design hypothesis, not a claim of proven superi
 ## AI-assisted research disclosure
 
 AI-assisted tools were used to search, screen, compare, and synthesize sources. Product claims were attributed to their owning or primary sources where available; secondary visual analyses were kept distinct from official claims.
-
