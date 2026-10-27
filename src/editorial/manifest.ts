@@ -51,7 +51,9 @@ export type ManifestIssue = {
     | 'timestamp-invalid' | 'rights-approval-missing' | 'rights-term-missing'
     | 'rights-rationale-missing' | 'constitution-version-invalid' | 'required-exclusion-missing'
     | 'pastor-approval-missing' | 'scholar-approval-missing' | 'dual-review-not-independent'
-    | 'approval-record-invalid' | 'signature-metadata-missing' | 'signature-state-invalid';
+    | 'approval-record-invalid' | 'signature-metadata-missing' | 'signature-state-invalid'
+    | 'clock-invalid' | 'timestamp-future' | 'approval-after-constitution'
+    | 'expiry-not-after-created' | 'translation-id-missing';
   field?: string;
 };
 
@@ -65,17 +67,23 @@ export function validateEditorialManifest(
   now: Date,
 ): ManifestIssue[] {
   const issues: ManifestIssue[] = [];
+  if (Number.isNaN(now.getTime())) return [{ code: 'clock-invalid' }];
+
   if (!manifest.packageId.trim()) issues.push({ code: 'package-id-missing' });
   if (!semverPattern.test(manifest.version)) issues.push({ code: 'package-version-invalid' });
   if (manifest.status !== 'approved') issues.push({ code: 'package-not-active' });
-  validateTimestamp(manifest.createdAt, 'createdAt', issues);
+  validateTimestamp(manifest.createdAt, 'createdAt', issues, now);
   validateTimestamp(manifest.expiresAt, 'expiresAt', issues);
   if (isIsoTimestamp(manifest.expiresAt) && new Date(manifest.expiresAt) <= now) {
     issues.push({ code: 'package-expired' });
   }
+  if (isIsoTimestamp(manifest.createdAt) && isIsoTimestamp(manifest.expiresAt)
+    && new Date(manifest.expiresAt) <= new Date(manifest.createdAt)) {
+    issues.push({ code: 'expiry-not-after-created' });
+  }
 
-  validateRights(manifest.translationRights, issues);
-  validateConstitution(manifest.constitution, issues);
+  validateRights(manifest.translationRights, issues, now);
+  validateConstitution(manifest.constitution, issues, now);
   if (!manifest.signature.keyId.trim() || !manifest.signature.value.trim()) {
     issues.push({ code: 'signature-metadata-missing' });
   }
@@ -85,11 +93,12 @@ export function validateEditorialManifest(
   return issues;
 }
 
-function validateRights(record: TranslationRightsRecord, issues: ManifestIssue[]): void {
+function validateRights(record: TranslationRightsRecord, issues: ManifestIssue[], now: Date): void {
+  if (!record.translationId.trim()) issues.push({ code: 'translation-id-missing' });
   if (!record.writtenApprovalRecordId.trim() || !record.approvedBy.trim()) {
     issues.push({ code: 'rights-approval-missing' });
   }
-  validateTimestamp(record.approvedAt, 'translationRights.approvedAt', issues);
+  validateTimestamp(record.approvedAt, 'translationRights.approvedAt', issues, now);
   for (const dimension of rightsDimensions) {
     const term = record.terms[dimension];
     if (!term) issues.push({ code: 'rights-term-missing', field: dimension });
@@ -97,17 +106,18 @@ function validateRights(record: TranslationRightsRecord, issues: ManifestIssue[]
   }
 }
 
-function validateConstitution(record: EditorialConstitutionRecord, issues: ManifestIssue[]): void {
+function validateConstitution(record: EditorialConstitutionRecord, issues: ManifestIssue[], now: Date): void {
   if (!semverPattern.test(record.version)) issues.push({ code: 'constitution-version-invalid' });
-  validateTimestamp(record.approvedAt, 'constitution.approvedAt', issues);
+  validateTimestamp(record.approvedAt, 'constitution.approvedAt', issues, now);
   for (const exclusionId of requiredExclusionIds) {
     if (!record.exclusionIds.includes(exclusionId)) {
       issues.push({ code: 'required-exclusion-missing', field: exclusionId });
     }
   }
 
-  const pastors = validApprovals(record, 'ordained-pastor', issues);
-  const scholars = validApprovals(record, 'biblical-scholar', issues);
+  const valid = record.approvals.filter((approval) => validateApproval(approval, record, issues, now));
+  const pastors = valid.filter((approval) => approval.role === 'ordained-pastor');
+  const scholars = valid.filter((approval) => approval.role === 'biblical-scholar');
   if (pastors.length === 0) issues.push({ code: 'pastor-approval-missing' });
   if (scholars.length === 0) issues.push({ code: 'scholar-approval-missing' });
   if (pastors.some((pastor) => scholars.some((scholar) => scholar.reviewerId === pastor.reviewerId))) {
@@ -115,24 +125,37 @@ function validateConstitution(record: EditorialConstitutionRecord, issues: Manif
   }
 }
 
-function validApprovals(
+function validateApproval(
+  approval: ApprovalRecord,
   constitution: EditorialConstitutionRecord,
-  role: ReviewerRole,
   issues: ManifestIssue[],
-): ApprovalRecord[] {
-  return constitution.approvals.filter((approval) => {
-    const valid = approval.role === role
-      && Boolean(approval.reviewerId.trim())
-      && Boolean(approval.reason.trim())
-      && approval.contentVersion === constitution.version
-      && isIsoTimestamp(approval.approvedAt);
-    if (approval.role === role && !valid) issues.push({ code: 'approval-record-invalid', field: role });
-    return valid;
-  });
+  now: Date,
+): boolean {
+  const approvedAtValid = isIsoTimestamp(approval.approvedAt);
+  const identityValid = Boolean(approval.reviewerId.trim())
+    && approval.reviewerId === approval.reviewerId.trim();
+  const valid = identityValid
+    && Boolean(approval.reason.trim())
+    && approval.contentVersion === constitution.version
+    && approvedAtValid;
+
+  if (!valid) issues.push({ code: 'approval-record-invalid', field: approval.role });
+  if (approvedAtValid && new Date(approval.approvedAt) > now) {
+    issues.push({ code: 'timestamp-future', field: `approval.${approval.role}.approvedAt` });
+  }
+  if (approvedAtValid && isIsoTimestamp(constitution.approvedAt)
+    && new Date(approval.approvedAt) > new Date(constitution.approvedAt)) {
+    issues.push({ code: 'approval-after-constitution', field: approval.role });
+  }
+  return valid;
 }
 
-function validateTimestamp(value: string, field: string, issues: ManifestIssue[]): void {
-  if (!isIsoTimestamp(value)) issues.push({ code: 'timestamp-invalid', field });
+function validateTimestamp(value: string, field: string, issues: ManifestIssue[], now?: Date): void {
+  if (!isIsoTimestamp(value)) {
+    issues.push({ code: 'timestamp-invalid', field });
+  } else if (now && new Date(value) > now) {
+    issues.push({ code: 'timestamp-future', field });
+  }
 }
 
 function isIsoTimestamp(value: string): boolean {

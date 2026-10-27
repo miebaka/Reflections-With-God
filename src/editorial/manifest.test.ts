@@ -99,4 +99,54 @@ describe('editorial package manifest validation', () => {
     manifest.signature.verification = 'verified' as never;
     expect(validateEditorialManifest(manifest, now)).toContainEqual({ code: 'signature-state-invalid' });
   });
+
+  it('fails closed when the validation clock is invalid', () => {
+    const manifest = validManifest();
+    manifest.expiresAt = '2026-10-26T00:00:00.000Z';
+    expect(validateEditorialManifest(manifest, new Date('invalid'))).toContainEqual({ code: 'clock-invalid' });
+  });
+
+  it('rejects future approvals and a package that expires before it was created', () => {
+    const manifest = validManifest();
+    manifest.createdAt = '2028-01-01T00:00:00.000Z';
+    manifest.expiresAt = '2027-01-01T00:00:00.000Z';
+    manifest.translationRights.approvedAt = '2028-01-01T00:00:00.000Z';
+    manifest.constitution.approvedAt = '2028-01-02T00:00:00.000Z';
+    manifest.constitution.approvals[0]!.approvedAt = '2028-01-03T00:00:00.000Z';
+    expect(validateEditorialManifest(manifest, now)).toEqual(expect.arrayContaining([
+      { code: 'timestamp-future', field: 'createdAt' },
+      { code: 'timestamp-future', field: 'translationRights.approvedAt' },
+      { code: 'timestamp-future', field: 'constitution.approvedAt' },
+      { code: 'timestamp-future', field: 'approval.ordained-pastor.approvedAt' },
+      { code: 'approval-after-constitution', field: 'ordained-pastor' },
+      { code: 'expiry-not-after-created' },
+    ]));
+  });
+
+  it('requires a nonblank translation identifier', () => {
+    const manifest = validManifest();
+    manifest.translationRights.translationId = '   ';
+    expect(validateEditorialManifest(manifest, now)).toContainEqual({ code: 'translation-id-missing' });
+  });
+
+  it('validates accountability fields for every declared approval role', () => {
+    const manifest = validManifest();
+    manifest.constitution.approvals.push({
+      reviewerId: '', role: 'content-editor', approvedAt: 'not-a-date',
+      contentVersion: 'wrong-version', reason: '',
+    });
+    expect(validateEditorialManifest(manifest, now)).toContainEqual({
+      code: 'approval-record-invalid', field: 'content-editor',
+    });
+  });
+
+  it('does not allow whitespace variants of one identity to satisfy dual review', () => {
+    const manifest = validManifest();
+    manifest.constitution.approvals[0]!.reviewerId = 'reviewer-1';
+    manifest.constitution.approvals[1]!.reviewerId = 'reviewer-1 ';
+    expect(validateEditorialManifest(manifest, now)).toEqual(expect.arrayContaining([
+      { code: 'approval-record-invalid', field: 'biblical-scholar' },
+      { code: 'scholar-approval-missing' },
+    ]));
+  });
 });
