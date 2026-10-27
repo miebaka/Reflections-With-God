@@ -68,7 +68,8 @@ export function simulateCoverage(
     }
   }
 
-  const fallbackCount = distinctPassageCount(eligibleUnits.filter(({ groundingFallback }) => groundingFallback));
+  const fallbackCount = distinctPassageCount(eligibleUnits.filter((unit) => unit.groundingFallback
+    && configuration.enabledEmotions.every((emotion) => !unit.contraindicatedEmotions.includes(emotion))));
   if (fallbackCount < configuration.requiredGroundingFallbacks) {
     issues.push({
       code: 'fallback-insufficient', actual: fallbackCount,
@@ -120,6 +121,12 @@ function validateConfiguration(configuration: CoverageConfiguration): CoverageIs
   if (configuration.enabledEmotions.length === 0
     || new Set(configuration.enabledEmotions).size !== configuration.enabledEmotions.length) {
     issues.push({ code: 'invalid-configuration', field: 'enabledEmotions' });
+  }
+  for (const emotion of configuration.enabledEmotions) {
+    const movements = configuration.applicableMovements[emotion];
+    if (!movements || movements.length === 0 || new Set(movements).size !== movements.length) {
+      issues.push({ code: 'invalid-configuration', field: `applicableMovements.${emotion}` });
+    }
   }
   for (const combination of configuration.mixedEmotionCombinations) {
     if (combination.length < 2 || combination.length > 3

@@ -69,6 +69,14 @@ describe('editorial coverage simulation', () => {
     });
   });
 
+  it('does not count a grounding fallback that is contraindicated for an enabled emotion', () => {
+    const units = Array.from({ length: 29 }, (_, index) => coverageUnit(index));
+    units[19] = { ...units[19]!, contraindicatedEmotions: ['sad'] };
+    expect(simulateCoverage(units, configuration()).issues).toContainEqual({
+      code: 'fallback-insufficient', actual: 19, required: 20,
+    });
+  });
+
   it('excludes contraindicated content from mixed-emotion simulations', () => {
     const units = Array.from({ length: 29 }, (_, index) => ({
       ...coverageUnit(index), contraindicatedEmotions: ['sad' as Emotion],
@@ -98,6 +106,15 @@ describe('editorial coverage simulation', () => {
       { code: 'invalid-configuration', field: 'enabledEmotions' },
       { code: 'invalid-configuration', field: 'replaySeeds' },
       { code: 'invalid-configuration', field: 'dayMovementSequence' },
+    ]));
+    expect(report.replayRuns).toBe(0);
+  });
+
+  it('requires an explicit movement contract for every enabled emotion', () => {
+    const report = simulateCoverage([], configuration({ applicableMovements: { anxious: [] } }));
+    expect(report.issues).toEqual(expect.arrayContaining([
+      { code: 'invalid-configuration', field: 'applicableMovements.anxious' },
+      { code: 'invalid-configuration', field: 'applicableMovements.sad' },
     ]));
     expect(report.replayRuns).toBe(0);
   });
