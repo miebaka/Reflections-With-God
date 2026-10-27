@@ -45,7 +45,7 @@ The offline outbox permits only allow-listed structured check-ins and fit feedba
 
 Any free-text surface must pass through an on-device safety interface before encryption or sync. A high-risk result pauses the Scripture journey and presents manually verified Nigerian crisis and pastoral resources. The journey resumes only after the user confirms they are safe, beginning with reviewed comfort content.
 
-The current foundation does not yet expose free writing, so it cannot accidentally ship an unprotected text surface.
+The current foundation does not yet expose free writing, so it cannot accidentally ship an unprotected text surface. Phase 5 supplies the local classifier contract, approval gate, interruption state machine, comfort-unit gate, strong-sadness nudge, and expiring resource-package validator. Its researched contact candidates are not publishable resources. Qualified-adviser policy approval, Nigerian-language evaluation, and manual contact verification remain release blockers.
 
 ## Content model
 
