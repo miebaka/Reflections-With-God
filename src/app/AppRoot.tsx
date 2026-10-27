@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { type Intensity, emotionOptions } from '../domain/checkIn';
@@ -13,6 +13,10 @@ import {
 } from './checkInViewModel';
 import { getScreenModel } from './screenModel';
 import { initialAppSession, reduceAppSession } from './session';
+import { createSessionController } from './sessionController';
+import { createAsyncStorageSessionRepository } from '../infrastructure/asyncStorageSessionRepository';
+
+const sessionController = createSessionController(createAsyncStorageSessionRepository());
 
 const directionCopy: Record<HealthyDirection, { title: string; description: string }> = {
   'acknowledge-and-ground': { title: 'Be met, then grounded', description: 'Name what is real before moving gently toward steadiness.' },
@@ -23,11 +27,39 @@ const directionCopy: Record<HealthyDirection, { title: string; description: stri
 export function AppRoot() {
   const [session, setSession] = useState(initialAppSession);
   const [now, setNow] = useState(() => new Date());
+  const [hydrated, setHydrated] = useState(false);
+  const [persistenceAvailable, setPersistenceAvailable] = useState(true);
+  const persistIntent = useRef<'save' | 'clear'>('save');
+  const skippedHydrationWrite = useRef(false);
   const model = getScreenModel(session, now);
   const selections = session.draft.checkIn.kind === 'known' ? session.draft.checkIn.selections : [];
   const dispatch = (event: Parameters<typeof reduceAppSession>[1]) => {
+    persistIntent.current = event.type === 'reset-session' ? 'clear' : 'save';
     setSession((current) => reduceAppSession(current, event));
   };
+
+  useEffect(() => {
+    let active = true;
+    void sessionController.hydrate(new Date()).then((result) => {
+      if (!active) return;
+      setSession(result.session);
+      setPersistenceAvailable(result.persistenceAvailable);
+      setHydrated(true);
+    });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    if (!skippedHydrationWrite.current) {
+      skippedHydrationWrite.current = true;
+      return;
+    }
+    const operation = persistIntent.current === 'clear'
+      ? sessionController.clear()
+      : sessionController.save(session, new Date());
+    void operation.then(setPersistenceAvailable);
+  }, [hydrated, session]);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 60_000);
@@ -56,17 +88,31 @@ export function AppRoot() {
     <ScrollView contentContainerStyle={styles.page}>
       <Text style={styles.eyebrow}>REFLECTIONS WITH GOD</Text>
 
-      {model.screen === 'welcome' && (
+      {!hydrated && (
+        <View style={styles.stack} accessibilityLiveRegion="polite">
+          <Text style={styles.kicker}>Preparing today</Text>
+          <Text style={styles.title}>Returning to your day gently.</Text>
+          <Text style={styles.body}>Your current journey is being restored on this device.</Text>
+        </View>
+      )}
+
+      {hydrated && !persistenceAvailable && (
+        <View style={styles.notice} accessibilityLiveRegion="polite">
+          <Text style={styles.noticeText}>This device could not save your journey. You can continue, but today may not be restored after the app closes.</Text>
+        </View>
+      )}
+
+      {hydrated && model.screen === 'welcome' && (
         <View style={styles.stack}>
           <Text style={styles.title}>Meet this day with Scripture.</Text>
           <Text style={styles.body}>Begin with how you honestly feel. Scripture, reflection, and prayer will meet the day gently.</Text>
           <View style={styles.note}><Text style={styles.noteText}>For adults 18 and over. Spiritual support—not therapy, diagnosis, crisis care, prophecy, or a replacement for church or professional care.</Text></View>
           <PrimaryButton label="I’m 18 or older — begin" onPress={() => dispatch({ type: 'attest-adult' })} />
-          <Text style={styles.quiet}>Memory-only preview · No streaks · No scores</Text>
+          <Text style={styles.quiet}>Saved on this device for today · No streaks · No scores</Text>
         </View>
       )}
 
-      {model.screen === 'check-in' && (
+      {hydrated && model.screen === 'check-in' && (
         <View style={styles.stack}>
           <Text style={styles.kicker}>Morning check-in</Text>
           <Text style={styles.title}>What are you carrying today?</Text>
@@ -98,7 +144,7 @@ export function AppRoot() {
         </View>
       )}
 
-      {model.screen === 'direction' && session.draft.proposedDirection && (
+      {hydrated && model.screen === 'direction' && session.draft.proposedDirection && (
         <View style={styles.stack}>
           <Text style={styles.kicker}>A gentle direction</Text>
           <Text style={styles.title}>How should Scripture meet you today?</Text>
@@ -119,7 +165,7 @@ export function AppRoot() {
         </View>
       )}
 
-      {model.screen === 'journey' && (
+      {hydrated && model.screen === 'journey' && (
         <View style={styles.stack}>
           {model.notices.map((notice) => <View key={notice} style={styles.notice}><Text style={styles.noticeText}>{notice}</Text></View>)}
           {model.showScripture ? (
@@ -145,7 +191,7 @@ export function AppRoot() {
         </View>
       )}
 
-      {model.screen === 'day-closed' && (
+      {hydrated && model.screen === 'day-closed' && (
         <View style={styles.stack}>
           <Text style={styles.kicker}>Day complete</Text>
           <Text style={styles.title}>{model.title}</Text>
