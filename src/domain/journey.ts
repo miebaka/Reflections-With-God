@@ -11,7 +11,7 @@ export type JourneyUnit = {
   reservedContentId?: string;
 };
 export type SupersessionReason = 'catch-up' | 'schedule-recovery' | 'check-in-recalculation';
-export type SupersessionRecord = { unitId: string; at: Date; reason: SupersessionReason };
+export type SupersessionRecord = { contentId: string; at: Date; reason: SupersessionReason };
 export type DailyJourney = {
   status: 'active' | 'closed';
   localDate: string;
@@ -51,7 +51,12 @@ export function createDailyJourney(checkIn: MoodCheckIn, arc: EmotionalArc, now:
   dayStart.setHours(8, 0, 0, 0);
   const late = now > dayStart;
   const firstMoment = late ? now : dayStart;
-  const units: JourneyUnit[] = [makeUnit(`${localDate(now)}-opening`, firstMoment, 'available', 'passage')];
+  const units: JourneyUnit[] = [makeUnit(
+    `${localDate(now)}-opening`,
+    firstMoment,
+    now < dayStart ? 'scheduled' : 'available',
+    'passage',
+  )];
   if (late) {
     units.push(makeUnit(`${localDate(now)}-catch-up`, now, 'available', 'catch-up'));
   }
@@ -73,9 +78,44 @@ export function advanceJourney(journey: DailyJourney, event: JourneyEvent): Dail
   if (!allowedTransitions[current.state].includes(nextState)) return journey;
 
   const units = journey.units.map((unit, unitIndex) => unitIndex === index ? { ...unit, state: nextState } : unit);
-  const supersessions = event.type === 'supersede'
-    ? [...journey.supersessions, { unitId: event.unitId, at: event.at, reason: event.reason }]
+  const supersessions = event.type === 'supersede' && current.reservedContentId
+    ? [...journey.supersessions, { contentId: current.reservedContentId, at: event.at, reason: event.reason }]
     : journey.supersessions;
+  return { ...journey, units, supersessions };
+}
+
+export function recoverMissedMoments(journey: DailyJourney, at: Date): DailyJourney {
+  if (journey.status === 'closed') return journey;
+  const catchUpId = `${journey.localDate}-catch-up-${at.getTime()}`;
+  if (journey.units.some(({ id }) => id === catchUpId)) return journey;
+
+  const current = [...journey.units]
+    .filter((unit) => unit.kind === 'passage' && unit.scheduledFor <= at)
+    .sort((left, right) => right.scheduledFor.getTime() - left.scheduledFor.getTime())[0];
+  if (!current) return journey;
+
+  const missed = journey.units.filter((unit) => (
+    unit.kind === 'passage'
+    && unit.scheduledFor < current.scheduledFor
+    && (unit.state === 'scheduled' || unit.state === 'available')
+  ));
+  if (missed.length < 2) return journey;
+  const missedIds = new Set(missed.map(({ id }) => id));
+
+  const updated = journey.units.map((unit) => {
+    if (missedIds.has(unit.id)) return { ...unit, state: 'superseded' as const };
+    if (unit.id === current.id && unit.state === 'scheduled') return { ...unit, state: 'available' as const };
+    return unit;
+  });
+  const currentIndex = updated.findIndex(({ id }) => id === current.id);
+  const catchUp = makeUnit(catchUpId, at, 'available', 'catch-up');
+  const units = [...updated.slice(0, currentIndex), catchUp, ...updated.slice(currentIndex)];
+  const supersessions = [
+    ...journey.supersessions,
+    ...missed.flatMap((unit): SupersessionRecord[] => unit.reservedContentId
+      ? [{ contentId: unit.reservedContentId, at, reason: 'catch-up' }]
+      : []),
+  ];
   return { ...journey, units, supersessions };
 }
 

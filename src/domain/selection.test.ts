@@ -52,6 +52,23 @@ describe('reviewed content selection', () => {
     expect(selectContent(request, [fallback])).toEqual({ kind: 'grounding-fallback', unit: fallback });
   });
 
+  it('uses a grounding fallback even when its grounding movement differs from the current stage', () => {
+    const fallback = approvedUnit({
+      id: 'fallback-1', passageId: 'Psalm.23.1-4', moodTags: [],
+      intensities: ['strong'], movements: ['ground'], groundingFallback: true,
+    });
+    expect(selectContent({ ...request, arcStage: 'acknowledge' }, [fallback]))
+      .toEqual({ kind: 'grounding-fallback', unit: fallback });
+  });
+
+  it('does not use a fallback outside its reviewed intensity bounds', () => {
+    const fallback = approvedUnit({
+      id: 'fallback-1', passageId: 'Psalm.23.1-4', moodTags: [],
+      intensities: ['mild'], movements: ['ground'], groundingFallback: true,
+    });
+    expect(selectContent(request, [fallback])).toEqual({ kind: 'unavailable' });
+  });
+
   it('returns unavailable when the safe fallback was already delivered', () => {
     const fallback = approvedUnit({
       id: 'fallback-1', passageId: 'Psalm.23.1-4', moodTags: [],
