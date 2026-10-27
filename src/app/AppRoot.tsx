@@ -6,6 +6,7 @@ import { developmentScriptureUnit } from '../domain/content';
 import type { HealthyDirection } from '../domain/direction';
 import { defaultNotificationSettings, type NotificationMode, type NotificationSettings } from '../domain/notifications';
 import { confirmTimezoneChange, observeTimezone } from '../domain/scheduleRecovery';
+import { sadnessSupportFor } from '../safety/policy';
 import { PrimaryButton } from '../ui/components/PrimaryButton';
 import { SelectionChip } from '../ui/components/SelectionChip';
 import { colors, radius, spacing } from '../ui/theme';
@@ -45,6 +46,9 @@ export function AppRoot() {
   const skippedHydrationWrite = useRef(false);
   const model = getScreenModel(session, now);
   const meaningfulUnitVisible = model.screen === 'journey' && model.showScripture;
+  const showStrongSadnessSupport = session.journey
+    ? sadnessSupportFor(session.journey.currentCheckIn) === 'gentle-nudge'
+    : false;
   const selections = session.draft.checkIn.kind === 'known' ? session.draft.checkIn.selections : [];
   const dispatch = (event: Parameters<typeof reduceAppSession>[1]) => {
     persistIntent.current = event.type === 'reset-session' ? 'clear' : 'save';
@@ -263,6 +267,11 @@ export function AppRoot() {
       {hydrated && model.screen === 'journey' && (
         <View style={styles.stack}>
           {model.notices.map((notice) => <View key={notice} style={styles.notice}><Text style={styles.noticeText}>{notice}</Text></View>)}
+          {showStrongSadnessSupport && (
+            <View style={styles.note} accessibilityLiveRegion="polite">
+              <Text style={styles.noteText}>You do not have to move quickly through this. If it would help, consider talking with someone you trust—a friend, family member, pastor, or qualified professional.</Text>
+            </View>
+          )}
           {model.showScripture ? (
             <>
               <Text style={styles.kicker}>{model.timeline.current?.label}</Text>
