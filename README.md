@@ -24,9 +24,12 @@ This repository contains the first product foundation:
 - distinct-passage coverage gates and deterministic 100-seed day simulation;
 - canonical Ed25519 verification against explicit trusted-key validity and revocation state;
 - atomic package activation, verified replacement, retirement, quarantine, and emergency rollback;
+- user-controlled Gentle, Rhythm, Companion, and Silent local-notification modes;
+- discreet low-importance reminders, deferred permission, and idempotent schedule replacement;
+- confirmed timezone recovery, quiet missed-moment unlocking, and a structured privacy-safe offline outbox;
 - automated tests for scheduling and validation rules.
 
-The local journey snapshot contains only structured check-in and journey state and expires at the local-day boundary. It contains no Scripture body, reflection, prayer edit, or recap text. The separate editorial registry stores reviewed packages and lifecycle evidence as one local value. AsyncStorage is a device persistence mechanism, **not** end-to-end encryption or a distributed transaction. Production keys and Scripture, private history, editable prayer, recap, notifications, safety screening, end-to-end encryption, cloud sync, and the full reviewed 29-passage-per-day library remain release blockers until implemented and independently verified.
+The local journey snapshot contains only structured check-in and journey state and expires at the local-day boundary. It contains no Scripture body, reflection, prayer edit, or recap text. The separate editorial registry stores reviewed packages and lifecycle evidence as one local value. The offline outbox accepts only structured check-ins and fit feedback; it rejects arbitrary or private text. AsyncStorage is a device persistence mechanism, **not** end-to-end encryption or a distributed transaction. Production keys and Scripture, private history, editable prayer, recap, safety screening, end-to-end encryption, cloud sync, and the full reviewed 29-passage-per-day library remain release blockers until implemented and independently verified. Local notification behavior still requires the iOS and Android device matrix in the release gates.
 
 ## Run locally
 

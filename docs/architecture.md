@@ -31,6 +31,16 @@ The current client saves only the structured same-day application session throug
 
 This device snapshot intentionally excludes Scripture text and all user-authored private text. AsyncStorage is not represented as end-to-end encryption, secure key storage, private history, or cloud backup. Those guarantees remain gated on the Phase 5 safety boundary and Phase 6 encryption design.
 
+### Phase 4 scheduling boundary
+
+Notification policy is pure domain code. It emits only fixed, discreet invitation intents; it never receives Scripture text, moods, reflections, prayers, or inferred state. Rhythm remains the default with three low-importance local reminders. Gentle schedules one chosen daily time, Companion explicitly opts into two-hour check-in invitations, and Silent removes every pending notification owned by this app. The 30-minute timeline cadence advances independently and never creates 30-minute push interruptions.
+
+The application asks for notification permission only after a meaningful unit is visible or the user explicitly enables reminders. It reconciles the desired plan against app-owned scheduled notifications, making restarts idempotent and leaving unrelated notifications untouched. Elapsed reminders are dropped rather than delivered as a burst. Android reminders use a low-importance channel; iOS requests passive interruption behavior. Device Focus and Do Not Disturb remain authoritative.
+
+Timezone changes are detected against the saved IANA timezone and require confirmation before future moments are rescheduled. An existing journey retains its recorded local date. If travel places the device on another calendar date, the app refuses to relabel that journey silently. Missed scheduled units collapse through the existing catch-up rule, and repeated recovery is idempotent.
+
+The offline outbox permits only allow-listed structured check-ins and fit feedback. Stable IDs deduplicate retries, acknowledgements remove only confirmed actions, and a monotonic single-value compare-and-swap protects local updates. Raw reflections, prayer edits, Scripture text, and arbitrary fields are rejected. This is a local queue boundary, not cloud synchronization.
+
 ## Safety model
 
 Any free-text surface must pass through an on-device safety interface before encryption or sync. A high-risk result pauses the Scripture journey and presents manually verified Nigerian crisis and pastoral resources. The journey resumes only after the user confirms they are safe, beginning with reviewed comfort content.
@@ -56,6 +66,5 @@ The final catalogue must include enough eligible passages to construct a 29-mome
 
 1. Local recap/history models and user-controlled retention, without free-text capture before safety review.
 2. Reviewed content-package schema, validator, and coverage simulation.
-3. Local notification scheduler with the three-push Rhythm default.
-4. On-device safety boundary and verified Nigeria resource package.
-5. Auth, trusted-device keys, recovery setup, and ciphertext-only sync.
+3. On-device safety boundary and verified Nigeria resource package.
+4. Auth, trusted-device keys, recovery setup, and ciphertext-only sync.

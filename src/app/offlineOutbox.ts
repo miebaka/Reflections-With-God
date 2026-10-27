@@ -72,7 +72,8 @@ export function assertOutboxItem(value: OfflineOutboxItem): void {
     if (!hasOnlyKeys(value.action as unknown as Record<string, unknown>, ['kind', 'checkIn'])) {
       throw new Error('The queued action contains unsupported data.');
     }
-    if (validateCheckIn(value.action.checkIn).length > 0) throw new Error('The queued check-in is invalid.');
+    if (!isPrivateSafeMood(value.action.checkIn)
+      || validateCheckIn(value.action.checkIn).length > 0) throw new Error('The queued check-in is invalid.');
     return;
   }
   if (!hasOnlyKeys(value.action as unknown as Record<string, unknown>, ['kind', 'unitId', 'fit', 'reasonId'])) {
@@ -87,4 +88,12 @@ export function assertOutboxItem(value: OfflineOutboxItem): void {
 
 function hasOnlyKeys(value: Record<string, unknown>, allowed: readonly string[]): boolean {
   return Object.keys(value).every((key) => allowed.includes(key));
+}
+
+function isPrivateSafeMood(value: MoodCheckIn): boolean {
+  const record = value as unknown as Record<string, unknown>;
+  if (value.kind === 'unknown') return hasOnlyKeys(record, ['kind']);
+  return hasOnlyKeys(record, ['kind', 'selections']) && value.selections.every((selection) => (
+    hasOnlyKeys(selection as unknown as Record<string, unknown>, ['emotion', 'intensity'])
+  ));
 }

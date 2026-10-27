@@ -62,6 +62,10 @@ describe('AsyncStorage offline outbox', () => {
       id: 'private', createdAt: '2026-10-27T09:00:00.000Z',
       action: { kind: 'fit-feedback', unitId: 'unit-1', fit: 'fits', reflection: 'private' } as never,
     })).rejects.toThrow();
+    await expect(enqueueOfflineAction(repository, {
+      id: 'private-check-in', createdAt: '2026-10-27T09:00:00.000Z',
+      action: { kind: 'check-in', checkIn: { kind: 'unknown', reflection: 'private' } as never },
+    })).rejects.toThrow('queued check-in');
 
     const corrupt = createAsyncStorageOfflineOutbox(memoryStorage('{broken').port);
     await expect(corrupt.read()).rejects.toThrow('Offline outbox is corrupt.');

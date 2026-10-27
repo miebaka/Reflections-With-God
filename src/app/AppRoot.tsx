@@ -4,6 +4,8 @@ import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-n
 import { type Intensity, emotionOptions } from '../domain/checkIn';
 import { developmentScriptureUnit } from '../domain/content';
 import type { HealthyDirection } from '../domain/direction';
+import { defaultNotificationSettings, type NotificationMode, type NotificationSettings } from '../domain/notifications';
+import { confirmTimezoneChange, observeTimezone } from '../domain/scheduleRecovery';
 import { PrimaryButton } from '../ui/components/PrimaryButton';
 import { SelectionChip } from '../ui/components/SelectionChip';
 import { colors, radius, spacing } from '../ui/theme';
@@ -15,8 +17,13 @@ import { getScreenModel } from './screenModel';
 import { initialAppSession, reduceAppSession } from './session';
 import { createSessionController } from './sessionController';
 import { createAsyncStorageSessionRepository } from '../infrastructure/asyncStorageSessionRepository';
+import { createAsyncStorageNotificationSettings } from '../infrastructure/asyncStorageNotificationSettings';
+import { createExpoNotificationPlatform } from '../infrastructure/expoNotificationPlatform';
+import { synchronizeDailyNotifications, type NotificationSyncResult } from './notificationScheduler';
 
 const sessionController = createSessionController(createAsyncStorageSessionRepository());
+const notificationSettingsRepository = createAsyncStorageNotificationSettings();
+const notificationPlatform = createExpoNotificationPlatform();
 
 const directionCopy: Record<HealthyDirection, { title: string; description: string }> = {
   'acknowledge-and-ground': { title: 'Be met, then grounded', description: 'Name what is real before moving gently toward steadiness.' },
@@ -29,9 +36,15 @@ export function AppRoot() {
   const [now, setNow] = useState(() => new Date());
   const [hydrated, setHydrated] = useState(false);
   const [persistenceAvailable, setPersistenceAvailable] = useState(true);
+  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>();
+  const [notificationResult, setNotificationResult] = useState<NotificationSyncResult>();
+  const [pendingTimezone, setPendingTimezone] = useState<string>();
+  const [timezoneNote, setTimezoneNote] = useState<string>();
+  const [explicitReminderChoice, setExplicitReminderChoice] = useState(false);
   const persistIntent = useRef<'save' | 'clear'>('save');
   const skippedHydrationWrite = useRef(false);
   const model = getScreenModel(session, now);
+  const meaningfulUnitVisible = model.screen === 'journey' && model.showScripture;
   const selections = session.draft.checkIn.kind === 'known' ? session.draft.checkIn.selections : [];
   const dispatch = (event: Parameters<typeof reduceAppSession>[1]) => {
     persistIntent.current = event.type === 'reset-session' ? 'clear' : 'save';
@@ -45,6 +58,20 @@ export function AppRoot() {
       setSession(result.session);
       setPersistenceAvailable(result.persistenceAvailable);
       setHydrated(true);
+    });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    void notificationSettingsRepository.load().then((saved) => {
+      if (!active) return;
+      const resolved = saved ?? defaultNotificationSettings(deviceTimezone());
+      setNotificationSettings(resolved);
+      const observed = deviceTimezone();
+      if (resolved.timezone !== observed) setPendingTimezone(observed);
+    }).catch(() => {
+      if (active) setNotificationSettings(defaultNotificationSettings(deviceTimezone()));
     });
     return () => { active = false; };
   }, []);
@@ -64,10 +91,59 @@ export function AppRoot() {
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 60_000);
     const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') setNow(new Date());
+      if (state === 'active') {
+        setNow(new Date());
+        const observed = deviceTimezone();
+        if (notificationSettings && observed !== notificationSettings.timezone) setPendingTimezone(observed);
+      }
     });
     return () => { clearInterval(interval); subscription.remove(); };
-  }, []);
+  }, [notificationSettings]);
+
+  useEffect(() => {
+    if (!hydrated || !notificationSettings || model.screen !== 'journey' || !session.journey) return;
+    void synchronizeDailyNotifications(notificationPlatform, {
+      localDate: session.journey.localDate,
+      settings: notificationSettings,
+      now,
+      hasOpenedMeaningfulUnit: meaningfulUnitVisible,
+      explicitlyEnabledReminders: explicitReminderChoice,
+    }).then(setNotificationResult).catch(() => undefined);
+  }, [explicitReminderChoice, hydrated, meaningfulUnitVisible, model.screen, notificationSettings, now, session.journey]);
+
+  const chooseNotificationMode = (mode: NotificationMode) => {
+    if (!notificationSettings) return;
+    const next: NotificationSettings = {
+      mode,
+      timezone: notificationSettings.timezone,
+      closingReminder: notificationSettings.closingReminder,
+      ...(mode === 'gentle' ? { gentleTime: notificationSettings.gentleTime ?? { hour: 9, minute: 0 } } : {}),
+    };
+    setExplicitReminderChoice(mode !== 'silent');
+    setNotificationSettings(next);
+    void notificationSettingsRepository.save(next);
+  };
+
+  const acceptTimezone = () => {
+    if (!pendingTimezone || !notificationSettings) return;
+    if (session.journey) {
+      const observation = observeTimezone({
+        selectedTimezone: notificationSettings.timezone,
+        confirmedScheduleTimezone: notificationSettings.timezone,
+      }, pendingTimezone);
+      const result = confirmTimezoneChange(session.journey, observation.state, new Date());
+      if (result.status === 'new-local-day-required') {
+        setTimezoneNote('The new timezone is already on a different calendar day. Your current day was kept unchanged to prevent duplicate journeys.');
+        setPendingTimezone(undefined);
+        return;
+      }
+      setSession((current) => ({ ...current, journey: result.journey }));
+    }
+    const next = { ...notificationSettings, timezone: pendingTimezone };
+    setNotificationSettings(next);
+    void notificationSettingsRepository.save(next);
+    setPendingTimezone(undefined);
+  };
 
   const chooseUnknown = () => {
     setSession((current) => reduceAppSession(
@@ -99,6 +175,25 @@ export function AppRoot() {
       {hydrated && !persistenceAvailable && (
         <View style={styles.notice} accessibilityLiveRegion="polite">
           <Text style={styles.noticeText}>This device could not save your journey. You can continue, but today may not be restored after the app closes.</Text>
+        </View>
+      )}
+
+      {hydrated && pendingTimezone && (
+        <View style={styles.notice} accessibilityLiveRegion="polite">
+          <Text style={styles.noticeText}>Your device timezone changed to {pendingTimezone}. Use it for the remaining schedule?</Text>
+          <PrimaryButton label="Use new timezone" onPress={acceptTimezone} />
+          <Pressable accessibilityRole="button" onPress={() => setPendingTimezone(undefined)}>
+            <Text style={styles.textButton}>Keep my current schedule</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {hydrated && timezoneNote && (
+        <View style={styles.notice} accessibilityLiveRegion="polite">
+          <Text style={styles.noticeText}>{timezoneNote}</Text>
+          <Pressable accessibilityRole="button" onPress={() => setTimezoneNote(undefined)}>
+            <Text style={styles.textButton}>Dismiss</Text>
+          </Pressable>
         </View>
       )}
 
@@ -187,6 +282,22 @@ export function AppRoot() {
             </>
           )}
           {model.timeline.nextAvailableAt && <Text style={styles.meta}>Another moment becomes available at {formatTime(model.timeline.nextAvailableAt)}. No reminder is required.</Text>}
+          {notificationSettings && (
+            <View style={styles.reminderPanel}>
+              <Text style={styles.prompt}>Reminders</Text>
+              <Text style={styles.body}>Scripture still appears quietly every 30 minutes. Choose how often this app may interrupt you.</Text>
+              <View style={styles.chips}>
+                {(['gentle', 'rhythm', 'companion', 'silent'] as const).map((mode) => (
+                  <SelectionChip key={mode} label={mode} selected={notificationSettings.mode === mode}
+                    onPress={() => chooseNotificationMode(mode)} />
+                ))}
+              </View>
+              <Text style={styles.meta}>{reminderDescription(notificationSettings.mode)}</Text>
+              {notificationResult?.status === 'permission-denied' && (
+                <Text style={styles.noticeText}>Notifications are off in your device settings. Your private timeline will still update.</Text>
+              )}
+            </View>
+          )}
           <Pressable accessibilityRole="button" onPress={() => dispatch({ type: 'reset-session' })}><Text style={styles.textButton}>End this preview</Text></Pressable>
         </View>
       )}
@@ -207,6 +318,17 @@ function formatTime(date: Date): string {
   return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
+function deviceTimezone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Africa/Lagos';
+}
+
+function reminderDescription(mode: NotificationMode): string {
+  if (mode === 'silent') return 'Silent · no notifications';
+  if (mode === 'gentle') return 'Gentle · one daily invitation at 9:00 a.m.';
+  if (mode === 'companion') return 'Companion · Rhythm plus optional two-hour check-in invitations';
+  return 'Rhythm · three invitations at 8:00 a.m., 2:00 p.m., and 8:00 p.m.';
+}
+
 const styles = StyleSheet.create({
   page: { flexGrow: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.xl, paddingBottom: 48, backgroundColor: colors.canvas },
   stack: { gap: spacing.md, marginTop: 56 }, eyebrow: { color: colors.forest, fontSize: 12, letterSpacing: 1.8, fontWeight: '700' },
@@ -224,4 +346,5 @@ const styles = StyleSheet.create({
   directionOptionSelected: { borderColor: colors.forest, backgroundColor: colors.forestSoft }, reference: { color: colors.forest, fontSize: 20, fontWeight: '700' },
   scripture: { color: colors.ink, fontSize: 32, lineHeight: 43, fontWeight: '500' }, rule: { width: 48, height: 2, backgroundColor: colors.gold, marginVertical: spacing.sm },
   prompt: { color: colors.ink, fontSize: 19, lineHeight: 29, fontWeight: '600' }, prayer: { color: colors.muted, fontSize: 16, lineHeight: 26, fontStyle: 'italic' },
+  reminderPanel: { gap: spacing.sm, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: spacing.lg, marginTop: spacing.md },
 });
