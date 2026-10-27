@@ -137,9 +137,10 @@ describe('editorial content package validation', () => {
       enabledEmotions: ['anxious'], applicableMovements: { anxious: ['ground'] },
       mixedEmotionCombinations: [], requiredPassagesPerDay: 29,
       minimumCandidatesPerTuple: 3, requiredGroundingFallbacks: 20, replaySeeds: 100,
+      dayMovementSequence: Array.from({ length: 29 }, () => 'ground'),
     }, now);
     expect(report.readyForCryptographicVerification).toBe(true);
-    expect(report.coverage?.replayRuns).toBe(100);
+    expect(report.coverage?.replayRuns).toBe(300);
     expect(candidate.manifest.signature.verification).toBe('unverified');
   });
 
@@ -150,6 +151,7 @@ describe('editorial content package validation', () => {
       enabledEmotions: ['anxious'], applicableMovements: { anxious: ['ground'] },
       mixedEmotionCombinations: [], requiredPassagesPerDay: 29,
       minimumCandidatesPerTuple: 3, requiredGroundingFallbacks: 20, replaySeeds: 100,
+      dayMovementSequence: Array.from({ length: 29 }, () => 'ground'),
     }, now);
     expect(report.readyForCryptographicVerification).toBe(false);
     expect(report.coverage).toBeUndefined();

@@ -20,6 +20,8 @@ This repository contains the first product foundation:
 - guarded, versioned same-day session restoration on the local device;
 - fail-closed recovery from corrupt, stale, future-dated, or unsupported snapshots;
 - a fail-closed editorial manifest for translation-rights review, dual approval, and required doctrine exclusions;
+- exact-version Scripture-unit and prayer-block validation with prohibited-claim checks;
+- distinct-passage coverage gates and deterministic 100-seed day simulation;
 - automated tests for scheduling and validation rules.
 
 The local snapshot contains only structured check-in and journey state and expires at the local-day boundary. It contains no Scripture body, reflection, prayer edit, or recap text. AsyncStorage is a device persistence mechanism, **not** end-to-end encryption. Private history, editable prayer, recap, notifications, safety screening, end-to-end encryption, cloud sync, and the full reviewed 29-passage-per-day library remain release blockers until implemented and independently verified.
@@ -44,3 +46,4 @@ npm start
 See [docs/architecture.md](docs/architecture.md) and [docs/release-gates.md](docs/release-gates.md).
 The implementation sequence is documented in [the MVP delivery phases](docs/superpowers/plans/2026-10-26-mvp-delivery-phases.md).
 The Phase 3 evidence boundary is documented in [the editorial package contract](docs/editorial/package-contract.md).
+The visual-product benchmark is documented in [the How We Feel design study](docs/research/2026-10-27-how-we-feel-product-design-study.md).

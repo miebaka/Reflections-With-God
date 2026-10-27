@@ -10,6 +10,7 @@ export type CoverageConfiguration = {
   minimumCandidatesPerTuple: number;
   requiredGroundingFallbacks: number;
   replaySeeds: number;
+  dayMovementSequence: readonly ArcStage[];
 };
 
 export type CoverageIssue = {
@@ -41,18 +42,18 @@ export function simulateCoverage(
   const replayStates: Array<{ field: string; units: EditorialUnit[] }> = [];
 
   for (const emotion of configuration.enabledEmotions) {
-    const candidates = eligibleUnits.filter((unit) => unit.moodTags.includes(emotion)
-      && !unit.contraindicatedEmotions.includes(emotion));
-    const distinct = distinctPassageCount(candidates);
-    if (distinct < configuration.requiredPassagesPerDay) {
-      issues.push({
-        code: 'single-day-insufficient', field: emotion,
-        actual: distinct, required: configuration.requiredPassagesPerDay,
-      });
-    }
-    replayStates.push({ field: emotion, units: candidates });
-
     for (const intensity of intensityValues) {
+      const candidates = eligibleUnits.filter((unit) => unit.moodTags.includes(emotion)
+        && unit.intensities.includes(intensity)
+        && !unit.contraindicatedEmotions.includes(emotion));
+      const distinct = distinctPassageCount(candidates);
+      if (distinct < configuration.requiredPassagesPerDay) {
+        issues.push({
+          code: 'single-day-insufficient', field: `${emotion}.${intensity}`,
+          actual: distinct, required: configuration.requiredPassagesPerDay,
+        });
+      }
+      replayStates.push({ field: `${emotion}.${intensity}`, units: candidates });
       for (const movement of configuration.applicableMovements[emotion] ?? []) {
         const tupleCandidates = candidates.filter((unit) => unit.intensities.includes(intensity)
           && unit.movements.includes(movement));
@@ -86,14 +87,22 @@ export function simulateCoverage(
         actual: distinct, required: configuration.requiredPassagesPerDay,
       });
     }
-    replayStates.push({ field, units: candidates });
+    for (const assignment of intensityAssignments(combination)) {
+      const assignedCandidates = candidates.filter((unit) => assignment.some(({ emotion, intensity }) => (
+        unit.moodTags.includes(emotion) && unit.intensities.includes(intensity)
+      )));
+      replayStates.push({
+        field: assignment.map(({ emotion, intensity }) => `${emotion}:${intensity}`).join('+'),
+        units: assignedCandidates,
+      });
+    }
   }
 
   for (const state of replayStates) {
     let failed = false;
     for (let seed = 0; seed < configuration.replaySeeds; seed += 1) {
       replayRuns += 1;
-      if (!simulateDistinctDay(state.units, configuration.requiredPassagesPerDay, seed)) failed = true;
+      if (!simulateDistinctDay(state.units, configuration.dayMovementSequence, seed)) failed = true;
     }
     if (failed) {
       issues.push({
@@ -128,6 +137,9 @@ function validateConfiguration(configuration: CoverageConfiguration): CoverageIs
       issues.push({ code: 'invalid-configuration', field });
     }
   }
+  if (configuration.dayMovementSequence.length !== configuration.requiredPassagesPerDay) {
+    issues.push({ code: 'invalid-configuration', field: 'dayMovementSequence' });
+  }
   return issues;
 }
 
@@ -143,7 +155,7 @@ function distinctPassageCount(units: readonly EditorialUnit[]): number {
 
 function simulateDistinctDay(
   units: readonly EditorialUnit[],
-  requiredPassages: number,
+  movementSequence: readonly ArcStage[],
   seed: number,
 ): boolean {
   const ordered = [...units].sort((left, right) => {
@@ -152,11 +164,22 @@ function simulateDistinctDay(
     return leftRank - rightRank || left.id.localeCompare(right.id);
   });
   const selected = new Set<string>();
-  for (const unit of ordered) {
-    selected.add(unit.passageId);
-    if (selected.size === requiredPassages) return true;
+  for (const movement of movementSequence) {
+    const next = ordered.find((unit) => !selected.has(unit.passageId) && unit.movements.includes(movement));
+    if (!next) return false;
+    selected.add(next.passageId);
   }
-  return false;
+  return true;
+}
+
+function intensityAssignments(emotions: readonly Emotion[]): Array<Array<{ emotion: Emotion; intensity: Intensity }>> {
+  let assignments: Array<Array<{ emotion: Emotion; intensity: Intensity }>> = [[]];
+  for (const emotion of emotions) {
+    assignments = assignments.flatMap((assignment) => intensityValues.map((intensity) => [
+      ...assignment, { emotion, intensity },
+    ]));
+  }
+  return assignments;
 }
 
 function deterministicRank(value: string): number {

@@ -29,6 +29,7 @@ function configuration(overrides: Partial<CoverageConfiguration> = {}): Coverage
     minimumCandidatesPerTuple: 3,
     requiredGroundingFallbacks: 20,
     replaySeeds: 100,
+    dayMovementSequence: Array.from({ length: 29 }, () => 'ground'),
     ...overrides,
   };
 }
@@ -38,7 +39,7 @@ describe('editorial coverage simulation', () => {
     const report = simulateCoverage(Array.from({ length: 29 }, (_, index) => coverageUnit(index)), configuration());
     expect(report.passed).toBe(true);
     expect(report.issues).toEqual([]);
-    expect(report.replayRuns).toBe(300);
+    expect(report.replayRuns).toBe(1_500);
   });
 
   it('counts distinct canonical passages rather than unit variants', () => {
@@ -46,8 +47,8 @@ describe('editorial coverage simulation', () => {
     units[28] = { ...units[28]!, passageId: units[27]!.passageId };
     const report = simulateCoverage(units, configuration());
     expect(report.issues).toEqual(expect.arrayContaining([
-      { code: 'single-day-insufficient', field: 'anxious', actual: 28, required: 29 },
-      { code: 'single-day-insufficient', field: 'sad', actual: 28, required: 29 },
+      { code: 'single-day-insufficient', field: 'anxious.mild', actual: 28, required: 29 },
+      { code: 'single-day-insufficient', field: 'sad.strong', actual: 28, required: 29 },
     ]));
     expect(report.issues.some(({ code }) => code === 'replay-failed')).toBe(true);
   });
@@ -86,14 +87,17 @@ describe('editorial coverage simulation', () => {
     expect(simulateCoverage(units, configuration()).passed).toBe(true);
 
     expect(simulateCoverage(units.slice(3), configuration()).issues)
-      .toContainEqual({ code: 'single-day-insufficient', field: 'anxious', actual: 26, required: 29 });
+      .toContainEqual({ code: 'single-day-insufficient', field: 'anxious.mild', actual: 26, required: 29 });
   });
 
   it('rejects incomplete or nonsensical simulator configuration', () => {
-    const report = simulateCoverage([], configuration({ replaySeeds: 0, enabledEmotions: [] }));
+    const report = simulateCoverage([], configuration({
+      replaySeeds: 0, enabledEmotions: [], dayMovementSequence: [],
+    }));
     expect(report.issues).toEqual(expect.arrayContaining([
       { code: 'invalid-configuration', field: 'enabledEmotions' },
       { code: 'invalid-configuration', field: 'replaySeeds' },
+      { code: 'invalid-configuration', field: 'dayMovementSequence' },
     ]));
     expect(report.replayRuns).toBe(0);
   });
