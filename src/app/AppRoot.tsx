@@ -1,36 +1,46 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { type Emotion, type Intensity, emotionOptions } from '../domain/checkIn';
+import { type Intensity, emotionOptions } from '../domain/checkIn';
 import { developmentScriptureUnit } from '../domain/content';
 import { createDailyJourney, type DailyJourney } from '../domain/journey';
 import { createEmotionalArc } from '../domain/arc';
-import { proposeDirection } from '../domain/direction';
+import { type HealthyDirection } from '../domain/direction';
 import { colors, radius, spacing } from '../ui/theme';
+import {
+  canSubmitCheckIn,
+  chooseDirection,
+  confirmProposedDirection,
+  createCheckInDraft,
+  selectUnknownMood,
+  setDraftIntensity,
+  toggleDraftEmotion,
+} from './checkInViewModel';
 
-type Screen = 'welcome' | 'check-in' | 'journey';
+type Screen = 'welcome' | 'check-in' | 'direction' | 'journey';
+
+const directionCopy: Record<HealthyDirection, { title: string; description: string }> = {
+  'acknowledge-and-ground': { title: 'Be met, then grounded', description: 'Begin by naming what is real before moving gently toward steadiness.' },
+  'sustain-with-gratitude': { title: 'Sustain this with gratitude', description: 'Let joy or peace deepen through gratitude, wisdom, and generosity.' },
+  'gentle-awareness': { title: 'Begin with gentle awareness', description: 'Start without forcing a label, and notice what becomes clearer.' },
+};
 
 export function AppRoot() {
   const [screen, setScreen] = useState<Screen>('welcome');
-  const [emotions, setEmotions] = useState<readonly Emotion[]>([]);
-  const [intensity, setIntensity] = useState<Intensity>('moderate');
+  const [draft, setDraft] = useState(createCheckInDraft);
   const [journey, setJourney] = useState<DailyJourney | null>(null);
-  const selectedLabel = useMemo(() => `${emotions.length} of 3 selected`, [emotions]);
+  const selections = draft.checkIn.kind === 'known' ? draft.checkIn.selections : [];
+  const selectedLabel = `${selections.length} of 3 selected`;
 
-  const startKnownJourney = () => {
-    if (emotions.length === 0) return;
-    const checkIn = {
-      kind: 'known',
-      selections: emotions.map((emotion) => ({ emotion, intensity })),
-    } as const;
-    const direction = proposeDirection(checkIn).id;
-    setJourney(createDailyJourney(checkIn, createEmotionalArc(checkIn, direction), new Date()));
-    setScreen('journey');
-  };
-
-  const startUnknownJourney = () => {
-    const checkIn = { kind: 'unknown' } as const;
-    setJourney(createDailyJourney(checkIn, createEmotionalArc(checkIn, 'gentle-awareness'), new Date()));
+  const confirmAndStartJourney = () => {
+    const confirmed = confirmProposedDirection(draft);
+    if (!canSubmitCheckIn(confirmed) || !confirmed.confirmedDirection) return;
+    setDraft(confirmed);
+    setJourney(createDailyJourney(
+      confirmed.checkIn,
+      createEmotionalArc(confirmed.checkIn, confirmed.confirmedDirection),
+      new Date(),
+    ));
     setScreen('journey');
   };
 
@@ -55,29 +65,55 @@ export function AppRoot() {
           <Text style={styles.meta}>{selectedLabel}</Text>
           <View style={styles.chips}>
             {emotionOptions.map((emotion) => {
-              const selected = emotions.includes(emotion);
+              const selected = selections.some((item) => item.emotion === emotion);
               return (
                 <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: selected }} key={emotion}
-                  onPress={() => setEmotions((current) => current.includes(emotion)
-                    ? current.filter((item) => item !== emotion)
-                    : current.length < 3 ? [...current, emotion] : current)}
+                  onPress={() => setDraft((current) => toggleDraftEmotion(current, emotion))}
                   style={[styles.chip, selected && styles.chipSelected]}>
                   <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{emotion}</Text>
                 </Pressable>
               );
             })}
           </View>
-          <Text style={styles.kicker}>How strongly do you feel this?</Text>
-          <View style={styles.segmented}>
-            {(['mild', 'moderate', 'strong'] as const).map((value) => (
-              <Pressable accessibilityRole="radio" accessibilityState={{ selected: intensity === value }} key={value}
-                onPress={() => setIntensity(value)} style={[styles.segment, intensity === value && styles.segmentSelected]}>
-                <Text style={intensity === value ? styles.segmentTextSelected : styles.segmentText}>{value}</Text>
+          {selections.map(({ emotion, intensity }) => (
+            <View key={emotion} style={styles.intensityCard}>
+              <Text style={styles.meta}>How strongly do you feel {emotion}?</Text>
+              <View style={styles.segmented}>
+                {(['mild', 'moderate', 'strong'] as const).map((value: Intensity) => (
+                  <Pressable accessibilityRole="radio" accessibilityState={{ selected: intensity === value }} key={value}
+                    onPress={() => setDraft((current) => setDraftIntensity(current, emotion, value))}
+                    style={[styles.segment, intensity === value && styles.segmentSelected]}>
+                    <Text style={intensity === value ? styles.segmentTextSelected : styles.segmentText}>{value}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          ))}
+          <PrimaryButton label="Continue" disabled={selections.length === 0} onPress={() => setScreen('direction')} />
+          <Pressable accessibilityRole="button" onPress={() => { setDraft((current) => selectUnknownMood(current)); setScreen('direction'); }}>
+            <Text style={styles.textButton}>I don’t know how I feel</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {screen === 'direction' && draft.proposedDirection && (
+        <View style={styles.stack}>
+          <Text style={styles.kicker}>A gentle direction</Text>
+          <Text style={styles.title}>How should Scripture meet you today?</Text>
+          <Text style={styles.body}>This is a suggestion, not a verdict. Choose the direction that feels most honest.</Text>
+          {(Object.keys(directionCopy) as HealthyDirection[]).map((direction) => {
+            const selected = draft.proposedDirection === direction;
+            return (
+              <Pressable accessibilityRole="radio" accessibilityState={{ selected }} key={direction}
+                onPress={() => setDraft((current) => chooseDirection(current, direction))}
+                style={[styles.directionOption, selected && styles.directionOptionSelected]}>
+                <Text style={styles.prompt}>{directionCopy[direction].title}</Text>
+                <Text style={styles.body}>{directionCopy[direction].description}</Text>
               </Pressable>
-            ))}
-          </View>
-          <PrimaryButton label="Begin today’s journey" disabled={emotions.length === 0} onPress={startKnownJourney} />
-          <Pressable accessibilityRole="button" onPress={startUnknownJourney}><Text style={styles.textButton}>I don’t know how I feel</Text></Pressable>
+            );
+          })}
+          <PrimaryButton label="Use this direction" onPress={confirmAndStartJourney} />
+          <Pressable accessibilityRole="button" onPress={() => setScreen('check-in')}><Text style={styles.textButton}>Back to my feelings</Text></Pressable>
         </View>
       )}
 
@@ -92,7 +128,7 @@ export function AppRoot() {
           <Text style={styles.prayer}>{developmentScriptureUnit.prayer}</Text>
           <View style={styles.note}><Text style={styles.noteText}>Foundation preview: this draft unit cannot ship until pastor and biblical-scholar review is recorded.</Text></View>
           <Text style={styles.meta}>{journey.units.length} moments are planned through 10 p.m.; two-hour check-ins remain optional.</Text>
-          <Pressable accessibilityRole="button" onPress={() => setScreen('check-in')}><Text style={styles.textButton}>Adjust how I feel</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => { setDraft(createCheckInDraft()); setScreen('check-in'); }}><Text style={styles.textButton}>Adjust how I feel</Text></Pressable>
         </View>
       )}
     </ScrollView>
@@ -115,11 +151,14 @@ const styles = StyleSheet.create({
   buttonDisabled: { opacity: 0.4 }, buttonText: { color: colors.white, fontSize: 16, fontWeight: '700' },
   textButton: { color: colors.forest, fontSize: 15, fontWeight: '700', textAlign: 'center', padding: spacing.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  intensityCard: { gap: spacing.sm, paddingTop: spacing.xs },
   chip: { borderWidth: 1, borderColor: colors.line, borderRadius: 99, paddingHorizontal: 16, paddingVertical: 11, backgroundColor: colors.surface },
   chipSelected: { borderColor: colors.forest, backgroundColor: colors.forest }, chipText: { color: colors.ink, fontSize: 15, textTransform: 'capitalize' }, chipTextSelected: { color: colors.white },
   segmented: { flexDirection: 'row', borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, overflow: 'hidden' },
   segment: { flex: 1, paddingVertical: 13, alignItems: 'center', backgroundColor: colors.surface }, segmentSelected: { backgroundColor: colors.forestSoft },
   segmentText: { color: colors.muted, textTransform: 'capitalize' }, segmentTextSelected: { color: colors.forest, fontWeight: '700', textTransform: 'capitalize' },
+  directionOption: { gap: spacing.xs, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md },
+  directionOptionSelected: { borderColor: colors.forest, backgroundColor: colors.forestSoft },
   reference: { color: colors.forest, fontSize: 20, fontWeight: '700' }, scripture: { color: colors.ink, fontSize: 32, lineHeight: 43, fontWeight: '500' },
   rule: { width: 48, height: 2, backgroundColor: colors.gold, marginVertical: spacing.sm }, prompt: { color: colors.ink, fontSize: 19, lineHeight: 29, fontWeight: '600' },
   prayer: { color: colors.muted, fontSize: 16, lineHeight: 26, fontStyle: 'italic' },

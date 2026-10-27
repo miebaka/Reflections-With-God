@@ -10,9 +10,11 @@ This repository contains the first product foundation:
 - strict TypeScript and framework-independent domain rules;
 - an adult-only, consent-aware entry flow;
 - a morning check-in supporting one to three emotions or “I don't know”;
-- a deterministic journey planner with half-hour units and optional two-hour check-ins;
+- independent mild, moderate, or strong intensity for every selected emotion;
+- a user-confirmed healthy direction and humane invisible emotional arc;
+- a deterministic 29-moment journey planner with optional two-hour check-ins;
 - explicit journey-unit states and catch-up supersession;
-- reviewed-content boundaries that prevent generated Bible text;
+- fail-closed reviewed-content selection, contraindications, grounding fallback, and canonical same-day deduplication;
 - automated tests for scheduling and validation rules.
 
 This milestone intentionally does **not** claim that cloud sync, end-to-end encryption, production safety screening, notifications, or the full reviewed 29-passage-per-day library are complete. Those features remain release blockers until implemented and independently verified.
@@ -35,3 +37,4 @@ npm start
 - Bible text and theological interpretation must pass licensing and human-review gates.
 
 See [docs/architecture.md](docs/architecture.md) and [docs/release-gates.md](docs/release-gates.md).
+The implementation sequence is documented in [the MVP delivery phases](docs/superpowers/plans/2026-10-26-mvp-delivery-phases.md).
