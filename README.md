@@ -17,6 +17,7 @@ This repository contains the first product foundation:
 - fail-closed reviewed-content selection, contraindications, grounding fallback, and canonical same-day deduplication;
 - a reducer-driven adult eligibility, check-in, direction, active journey, and closed-day application shell;
 - a calm timeline projection that excludes superseded moments and treats check-ins as optional;
+- a fail-closed editorial manifest for translation-rights review, dual approval, and required doctrine exclusions;
 - automated tests for scheduling and validation rules.
 
 This milestone intentionally does **not** persist private moods or history. Private persistence, history, editable prayer, recap, notifications, safety screening, end-to-end encryption, cloud sync, and the full reviewed 29-passage-per-day library remain release blockers until implemented and independently verified.
@@ -40,3 +41,4 @@ npm start
 
 See [docs/architecture.md](docs/architecture.md) and [docs/release-gates.md](docs/release-gates.md).
 The implementation sequence is documented in [the MVP delivery phases](docs/superpowers/plans/2026-10-26-mvp-delivery-phases.md).
+The Phase 3 evidence boundary is documented in [the editorial package contract](docs/editorial/package-contract.md).
