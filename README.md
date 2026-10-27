@@ -15,9 +15,11 @@ This repository contains the first product foundation:
 - a deterministic 29-moment journey planner with optional two-hour check-ins;
 - explicit journey-unit states and catch-up supersession;
 - fail-closed reviewed-content selection, contraindications, grounding fallback, and canonical same-day deduplication;
+- a reducer-driven adult eligibility, check-in, direction, active journey, and closed-day application shell;
+- a calm timeline projection that excludes superseded moments and treats check-ins as optional;
 - automated tests for scheduling and validation rules.
 
-This milestone intentionally does **not** claim that cloud sync, end-to-end encryption, production safety screening, notifications, or the full reviewed 29-passage-per-day library are complete. Those features remain release blockers until implemented and independently verified.
+This milestone intentionally does **not** persist private moods or history. Private persistence, history, editable prayer, recap, notifications, safety screening, end-to-end encryption, cloud sync, and the full reviewed 29-passage-per-day library remain release blockers until implemented and independently verified.
 
 ## Run locally
 
