@@ -31,6 +31,25 @@ describe('local session snapshots', () => {
     expect(raw).not.toContain('scriptureText');
   });
 
+  it('does not persist an unprotected free-text cause even if one reaches the domain model', () => {
+    const session = reduceAppSession(initialAppSession(), { type: 'attest-adult' });
+    const withCause = reduceAppSession(session, {
+      type: 'update-draft',
+      draft: {
+        checkIn: {
+          kind: 'known',
+          selections: [{ emotion: 'sad', intensity: 'strong' }],
+          cause: 'private words that must not be stored yet',
+        },
+        proposedDirection: 'acknowledge-and-ground',
+      },
+    });
+
+    const raw = createSessionSnapshot(withCause, now);
+    expect(raw).not.toContain('private words');
+    expect((restoreSessionSnapshot(raw, now)?.draft.checkIn as { cause?: string }).cause).toBeUndefined();
+  });
+
   it.each([
     ['unsupported schema', (value: any) => { value.schemaVersion = 2; }],
     ['malformed nested mood', (value: any) => { value.session.draft.checkIn = { kind: 'known', selections: [{ emotion: 'invented', intensity: 'strong' }] }; }],

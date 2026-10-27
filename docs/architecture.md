@@ -25,6 +25,12 @@ Reflections, prayer edits, mood history, and recaps are private-domain data. The
 
 Cloud history sync stays disabled until the user has created and confirmed a recovery secret. Losing every trusted device and that secret makes encrypted history unrecoverable.
 
+### Phase 2B local session boundary
+
+The current client saves only the structured same-day application session through a repository interface backed by AsyncStorage. Snapshots use an explicit schema version, restore dates field by field, and are rejected when malformed, stale, future-dated, unsupported, or from a different local calendar day. Invalid snapshots are removed rather than partially trusted.
+
+This device snapshot intentionally excludes Scripture text and all user-authored private text. AsyncStorage is not represented as end-to-end encryption, secure key storage, private history, or cloud backup. Those guarantees remain gated on the Phase 5 safety boundary and Phase 6 encryption design.
+
 ## Safety model
 
 Any free-text surface must pass through an on-device safety interface before encryption or sync. A high-risk result pauses the Scripture journey and presents manually verified Nigerian crisis and pastoral resources. The journey resumes only after the user confirms they are safe, beginning with reviewed comfort content.
@@ -48,7 +54,7 @@ The final catalogue must include enough eligible passages to construct a 29-mome
 
 ## Planned next slices
 
-1. Application reducer and encrypted local persistence interface.
+1. Local recap/history models and user-controlled retention, without free-text capture before safety review.
 2. Reviewed content-package schema, validator, and coverage simulation.
 3. Local notification scheduler with the three-push Rhythm default.
 4. On-device safety boundary and verified Nigeria resource package.

@@ -17,9 +17,11 @@ This repository contains the first product foundation:
 - fail-closed reviewed-content selection, contraindications, grounding fallback, and canonical same-day deduplication;
 - a reducer-driven adult eligibility, check-in, direction, active journey, and closed-day application shell;
 - a calm timeline projection that excludes superseded moments and treats check-ins as optional;
+- guarded, versioned same-day session restoration on the local device;
+- fail-closed recovery from corrupt, stale, future-dated, or unsupported snapshots;
 - automated tests for scheduling and validation rules.
 
-This milestone intentionally does **not** persist private moods or history. Private persistence, history, editable prayer, recap, notifications, safety screening, end-to-end encryption, cloud sync, and the full reviewed 29-passage-per-day library remain release blockers until implemented and independently verified.
+The local snapshot contains only structured check-in and journey state and expires at the local-day boundary. It contains no Scripture body, reflection, prayer edit, or recap text. AsyncStorage is a device persistence mechanism, **not** end-to-end encryption. Private history, editable prayer, recap, notifications, safety screening, end-to-end encryption, cloud sync, and the full reviewed 29-passage-per-day library remain release blockers until implemented and independently verified.
 
 ## Run locally
 
