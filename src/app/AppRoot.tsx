@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { type Intensity, emotionOptions } from '../domain/checkIn';
 import { developmentScriptureUnit } from '../domain/content';
@@ -22,11 +22,20 @@ const directionCopy: Record<HealthyDirection, { title: string; description: stri
 
 export function AppRoot() {
   const [session, setSession] = useState(initialAppSession);
-  const model = getScreenModel(session, new Date());
+  const [now, setNow] = useState(() => new Date());
+  const model = getScreenModel(session, now);
   const selections = session.draft.checkIn.kind === 'known' ? session.draft.checkIn.selections : [];
   const dispatch = (event: Parameters<typeof reduceAppSession>[1]) => {
     setSession((current) => reduceAppSession(current, event));
   };
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 60_000);
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') setNow(new Date());
+    });
+    return () => { clearInterval(interval); subscription.remove(); };
+  }, []);
 
   const chooseUnknown = () => {
     setSession((current) => reduceAppSession(
@@ -112,14 +121,25 @@ export function AppRoot() {
 
       {model.screen === 'journey' && (
         <View style={styles.stack}>
-          <Text style={styles.kicker}>{model.timeline.current?.label ?? 'Today’s journey'}</Text>
-          <Text style={styles.reference}>{developmentScriptureUnit.reference}</Text>
-          <Text style={styles.scripture}>“{developmentScriptureUnit.scriptureText}”</Text>
-          <Text style={styles.body}>{developmentScriptureUnit.context}</Text>
-          <View style={styles.rule} />
-          <Text style={styles.prompt}>{developmentScriptureUnit.reflectionPrompt}</Text>
-          <Text style={styles.prayer}>{developmentScriptureUnit.prayer}</Text>
-          <View style={styles.note}><Text style={styles.noteText}>Development fixture only. It cannot ship until licensing and pastor, scholar, safety, and final approvals are recorded.</Text></View>
+          {model.notices.map((notice) => <View key={notice} style={styles.notice}><Text style={styles.noticeText}>{notice}</Text></View>)}
+          {model.showScripture ? (
+            <>
+              <Text style={styles.kicker}>{model.timeline.current?.label}</Text>
+              <Text style={styles.reference}>{developmentScriptureUnit.reference}</Text>
+              <Text style={styles.scripture}>“{developmentScriptureUnit.scriptureText}”</Text>
+              <Text style={styles.body}>{developmentScriptureUnit.context}</Text>
+              <View style={styles.rule} />
+              <Text style={styles.prompt}>{developmentScriptureUnit.reflectionPrompt}</Text>
+              <Text style={styles.prayer}>{developmentScriptureUnit.prayer}</Text>
+              <View style={styles.note}><Text style={styles.noteText}>Development fixture only. It cannot ship until licensing and pastor, scholar, safety, and final approvals are recorded.</Text></View>
+            </>
+          ) : (
+            <>
+              <Text style={styles.kicker}>Today’s journey</Text>
+              <Text style={styles.title}>Your first moment will be ready soon.</Text>
+              <Text style={styles.body}>There is nothing to catch up. Return when the day begins.</Text>
+            </>
+          )}
           {model.timeline.nextAvailableAt && <Text style={styles.meta}>Another moment becomes available at {formatTime(model.timeline.nextAvailableAt)}. No reminder is required.</Text>}
           <Pressable accessibilityRole="button" onPress={() => dispatch({ type: 'reset-session' })}><Text style={styles.textButton}>End this preview</Text></Pressable>
         </View>
@@ -147,6 +167,8 @@ const styles = StyleSheet.create({
   kicker: { color: colors.gold, fontSize: 14, fontWeight: '700' }, title: { color: colors.ink, fontSize: 42, lineHeight: 48, fontWeight: '600', letterSpacing: -1.2 },
   body: { color: colors.muted, fontSize: 17, lineHeight: 27 }, quiet: { color: colors.muted, fontSize: 13, textAlign: 'center' }, meta: { color: colors.muted, fontSize: 13, fontWeight: '600' },
   note: { backgroundColor: colors.forestSoft, borderRadius: radius.md, padding: spacing.md }, noteText: { color: colors.forest, fontSize: 14, lineHeight: 21 },
+  notice: { borderWidth: 1, borderColor: colors.gold, borderRadius: radius.md, padding: spacing.md, backgroundColor: colors.surface },
+  noticeText: { color: colors.ink, fontSize: 14, lineHeight: 21, fontWeight: '600' },
   textButton: { minHeight: 44, color: colors.forest, fontSize: 15, fontWeight: '700', textAlign: 'center', padding: spacing.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }, intensityCard: { gap: spacing.sm, paddingTop: spacing.xs },
   segmented: { flexDirection: 'row', borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, overflow: 'hidden' },

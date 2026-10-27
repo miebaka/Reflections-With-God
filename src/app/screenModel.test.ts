@@ -31,4 +31,35 @@ describe('application screen model', () => {
     });
     expect('scriptureUnit' in model).toBe(false);
   });
+
+  it('closes an existing morning journey when the clock reaches 10 p.m.', () => {
+    const morning = new Date(2026, 9, 27, 8, 0);
+    expect(getScreenModel(sessionAt(morning), new Date(2026, 9, 27, 22, 0)))
+      .toMatchObject({ screen: 'day-closed' });
+  });
+
+  it('waits without showing Scripture before the first 8 a.m. moment', () => {
+    const now = new Date(2026, 9, 27, 7, 59);
+    const model = getScreenModel(sessionAt(now), now);
+    expect(model).toMatchObject({
+      screen: 'journey',
+      showScripture: false,
+      timeline: { nextAvailableAt: new Date(2026, 9, 27, 8, 0) },
+    });
+    expect(model.screen === 'journey' ? model.timeline.current : 'wrong-screen').toBeUndefined();
+  });
+
+  it('surfaces a late-start catch-up and an optional check-in opportunity', () => {
+    const late = new Date(2026, 9, 27, 12, 5);
+    expect(getScreenModel(sessionAt(late), late)).toMatchObject({
+      screen: 'journey',
+      notices: ['A gentle catch-up'],
+    });
+
+    const boundary = new Date(2026, 9, 27, 10, 0);
+    expect(getScreenModel(sessionAt(boundary), boundary)).toMatchObject({
+      screen: 'journey',
+      notices: expect.arrayContaining(['Optional check-in']),
+    });
+  });
 });
