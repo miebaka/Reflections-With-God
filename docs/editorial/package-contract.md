@@ -23,15 +23,32 @@ The package validator rejects duplicate active identities, conflicting source st
 
 Structural readiness advances a package only to cryptographic verification. It is not activation.
 
+## Signature and lifecycle gate
+
+Phase 3C adds deterministic Ed25519 verification and a fail-closed package lifecycle. The signed payload is canonical JSON containing the complete manifest except its signature envelope, followed by every content unit and prayer block in their original array order. A package is eligible for activation only when the Phase 3B readiness gate passes and one active trusted key verifies the signature within its declared validity window.
+
+The local registry stores each content package and its lifecycle registry in one versioned AsyncStorage value. A serialized compare-and-swap operation advances the registry revision exactly once, preventing concurrent operations in the same application runtime from both winning. Activation preserves the formerly active package as a verified standby. Retirement of an active package requires a replacement that passes the gate again in the same transition. Emergency rollback also re-evaluates the previous or configured fallback package before activating it, then quarantines the failed version. Retired and quarantined identities cannot be reactivated.
+
+Every successful transition records the actor, reason, timestamp, identity, and action. Invalid clocks, malformed signatures, missing or ambiguous keys, revoked or out-of-window keys, failed readiness, stale revisions, corrupt storage, unavailable storage, and unavailable verification all fail closed without intentionally replacing the current active package.
+
+## Key and operator responsibilities
+
+Production key provisioning is an accountable release operation outside the app:
+
+- generate signing keys in an approved secure environment and keep private keys outside the application and repository;
+- provision only public keys, unique key IDs, explicit validity windows, and current status into the reviewed trust store;
+- overlap old and new active public keys during a planned rotation, while ensuring each key ID resolves uniquely;
+- distribute revocation updates urgently and prevent any revoked key from signing or re-verifying a package;
+- sign only the exact canonical payload produced by the published package tooling, then verify the finished package independently before release;
+- retain the last known-good verified package locally so loss of network access does not create a verification bypass; and
+- use named operator identities and meaningful reasons for every activation, retirement, and rollback.
+
+AsyncStorage provides a single-value local commit, not end-to-end encryption and not a distributed transaction. The in-process serialization guard does not replace a server-side compare-and-swap if multiple devices or processes later manage packages. A future remote trust-store or package service must authenticate its responses, preserve monotonic revisions, define freshness and revocation behavior offline, and be tested against rollback and split-brain conditions.
+
 ## Deliberate boundary
 
-Signature fields remain marked `unverified`. This slice does not contain trusted keys or claim cryptographic verification. A package must not become active merely because it contains signature-shaped text.
+The repository contains no production key, production Scripture, remote key-distribution service, or signing ceremony. Development manifests may still display `verification: 'unverified'`; that field is signed input, not authority. The lifecycle stores separate verification evidence only after executing the trust gate.
 
-The remaining Phase 3 work adds:
+The validators and signature checks prove package integrity and provenance from a configured trusted public key. They do not prove that a Bible quotation matches an authorized source, that a reviewer possesses the claimed credentials, that a legal rights decision is correct, or that theological judgment was sound. Those are external accountable facts whose records the package references. The prohibited-phrase screen is a deterministic backstop, not a substitute for pastoral, scholarly, safety, or editorial review.
 
-- cryptographic signature verification with reviewed key management;
-- atomic activation, retirement, emergency rollback, and safe fallback replacement.
-
-The validators do not prove that a Bible quotation matches an authorized source, that a reviewer possesses the claimed credentials, that a legal rights decision is correct, or that theological judgment was sound. Those are external accountable facts whose records the package references. The prohibited-phrase screen is a deterministic backstop, not a substitute for pastoral, scholarly, safety, or editorial review.
-
-Until those gates exist and the translation approval is real, development fixtures remain non-publishable and no production Scripture package may be ingested.
+Until production keys are securely provisioned, the translation approval is real, reviewer identities are independently confirmed, and release operations are approved, development fixtures remain non-publishable and no production Scripture package may be ingested.
