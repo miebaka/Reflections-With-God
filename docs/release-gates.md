@@ -18,7 +18,9 @@ These are blockers, not aspirational backlog items.
 - [ ] Sync is disabled until recovery setup is confirmed.
 - [ ] Retention options and permanent deletion are verified end to end.
 - [ ] Analytics payload tests prove that private text cannot be emitted.
+- [ ] Explicit feedback precedence, correction replacement, personalization reset, behavioral-signal caps, and 30-day decay pass adversarial tests.
 - [ ] Any external AI analysis is explicit opt-in, zero-training, zero-retention, and disabled when those guarantees are unavailable.
+- [ ] Any analysis provider has a current reviewed contract and technical verification proving payload logging is disabled and failed requests are not retained or replayed.
 - [ ] Independent threat-model and cryptographic review, recovery-usability testing, penetration testing, and Nigerian privacy/legal review pass.
 - [ ] High-severity production dependency advisories are remediated or explicitly accepted with a documented reachability analysis; do not apply audit fixes that downgrade the Expo SDK.
 

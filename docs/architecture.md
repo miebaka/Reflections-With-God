@@ -47,6 +47,12 @@ Private records now have an authenticated encryption envelope, generated recover
 
 This foundation does not connect a production account or cloud service and has not completed independent cryptographic, legal, deletion, recovery-usability, or penetration review. Those remain external-alpha blockers. See [the encryption boundary](privacy/encryption-boundary.md).
 
+### Phase 7 learning and analysis boundary
+
+Explicit fit feedback is the durable learning authority. Passive opens, skips, and prayer edits are capped weak signals that decay to zero over 30 days and never express a spiritual or moral judgment. Analytics accepts only a closed product-quality event schema with coarse time and no private text, moods, prayers, recovery data, analysis results, scores, or streaks.
+
+Optional deeper analysis uses specific, revocable, single-use consent. The exact reflection must pass local safety screening immediately before submission, and the feature fails closed unless a current assurance proves zero training, zero persistent retention, disabled payload logging, contractual review, and technical verification. No provider is configured. See [the learning and analysis boundary](privacy/learning-and-analysis.md).
+
 ## Safety model
 
 Any free-text surface must pass through an on-device safety interface before encryption or sync. A high-risk result pauses the Scripture journey and presents manually verified Nigerian crisis and pastoral resources. The journey resumes only after the user confirms they are safe, beginning with reviewed comfort content.
