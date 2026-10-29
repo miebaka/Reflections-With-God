@@ -1,6 +1,6 @@
 export const colors = {
-  canvas: '#F7F3E9', surface: '#FFFCF5', ink: '#1D2A24', muted: '#66736C',
-  line: '#D8D6C9', forest: '#234E3E', forestSoft: '#DDE9E1', gold: '#B78B3A',
+  canvas: '#F7F3E9', surface: '#FFFCF5', ink: '#1D2A24', muted: '#5E6B64',
+  line: '#D8D6C9', forest: '#234E3E', forestSoft: '#DDE9E1', gold: '#8A651F',
   danger: '#8F3B36', white: '#FFFFFF',
 } as const;
 

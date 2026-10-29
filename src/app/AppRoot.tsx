@@ -171,7 +171,7 @@ export function AppRoot() {
       {!hydrated && (
         <View style={styles.stack} accessibilityLiveRegion="polite">
           <Text style={styles.kicker}>Preparing today</Text>
-          <Text style={styles.title}>Returning to your day gently.</Text>
+          <Text accessibilityRole="header" style={styles.title}>Returning to your day gently.</Text>
           <Text style={styles.body}>Your current journey is being restored on this device.</Text>
         </View>
       )}
@@ -203,7 +203,7 @@ export function AppRoot() {
 
       {hydrated && model.screen === 'welcome' && (
         <View style={styles.stack}>
-          <Text style={styles.title}>Meet this day with Scripture.</Text>
+          <Text accessibilityRole="header" style={styles.title}>Meet this day with Scripture.</Text>
           <Text style={styles.body}>Begin with how you honestly feel. Scripture, reflection, and prayer will meet the day gently.</Text>
           <View style={styles.note}><Text style={styles.noteText}>For adults 18 and over. Spiritual support—not therapy, diagnosis, crisis care, prophecy, or a replacement for church or professional care.</Text></View>
           <PrimaryButton label="I’m 18 or older — begin" onPress={() => dispatch({ type: 'attest-adult' })} />
@@ -214,7 +214,7 @@ export function AppRoot() {
       {hydrated && model.screen === 'check-in' && (
         <View style={styles.stack}>
           <Text style={styles.kicker}>Morning check-in</Text>
-          <Text style={styles.title}>What are you carrying today?</Text>
+          <Text accessibilityRole="header" style={styles.title}>What are you carrying today?</Text>
           <Text style={styles.body}>Choose up to three feelings. None needs to be the “main” one.</Text>
           <Text style={styles.meta}>{selections.length} of 3 selected</Text>
           <View style={styles.chips}>
@@ -227,7 +227,7 @@ export function AppRoot() {
           {selections.map(({ emotion, intensity }) => (
             <View key={emotion} style={styles.intensityCard}>
               <Text style={styles.meta}>How strongly do you feel {emotion}?</Text>
-              <View style={styles.segmented}>
+              <View accessibilityRole="radiogroup" accessibilityLabel={`Intensity for ${emotion}`} style={styles.segmented}>
                 {(['mild', 'moderate', 'strong'] as const).map((value: Intensity) => (
                   <Pressable accessibilityRole="radio" accessibilityState={{ selected: intensity === value }} key={value}
                     onPress={() => dispatch({ type: 'update-draft', draft: setDraftIntensity(session.draft, emotion, value) })}
@@ -246,8 +246,9 @@ export function AppRoot() {
       {hydrated && model.screen === 'direction' && session.draft.proposedDirection && (
         <View style={styles.stack}>
           <Text style={styles.kicker}>A gentle direction</Text>
-          <Text style={styles.title}>How should Scripture meet you today?</Text>
+          <Text accessibilityRole="header" style={styles.title}>How should Scripture meet you today?</Text>
           <Text style={styles.body}>This is a suggestion, not a verdict. Choose what feels most honest.</Text>
+          <View accessibilityRole="radiogroup" accessibilityLabel="Direction for today's Scripture" style={styles.stackCompact}>
           {(Object.keys(directionCopy) as HealthyDirection[]).map((direction) => {
             const selected = session.draft.proposedDirection === direction;
             return (
@@ -259,6 +260,7 @@ export function AppRoot() {
               </Pressable>
             );
           })}
+          </View>
           <PrimaryButton label="Use this direction" onPress={confirmDirection} />
           <Pressable accessibilityRole="button" onPress={() => dispatch({ type: 'show-check-in' })}><Text style={styles.textButton}>Back to my feelings</Text></Pressable>
         </View>
@@ -275,7 +277,7 @@ export function AppRoot() {
           {model.showScripture ? (
             <>
               <Text style={styles.kicker}>{model.timeline.current?.label}</Text>
-              <Text style={styles.reference}>{developmentScriptureUnit.reference}</Text>
+              <Text accessibilityRole="header" style={styles.reference}>{developmentScriptureUnit.reference}</Text>
               <Text style={styles.scripture}>“{developmentScriptureUnit.scriptureText}”</Text>
               <Text style={styles.body}>{developmentScriptureUnit.context}</Text>
               <View style={styles.rule} />
@@ -314,7 +316,7 @@ export function AppRoot() {
       {hydrated && model.screen === 'day-closed' && (
         <View style={styles.stack}>
           <Text style={styles.kicker}>Day complete</Text>
-          <Text style={styles.title}>{model.title}</Text>
+          <Text accessibilityRole="header" style={styles.title}>{model.title}</Text>
           <Text style={styles.body}>{model.message}</Text>
           <PrimaryButton label="Return to welcome" onPress={() => dispatch({ type: 'reset-session' })} />
         </View>
@@ -340,7 +342,7 @@ function reminderDescription(mode: NotificationMode): string {
 
 const styles = StyleSheet.create({
   page: { flexGrow: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.xl, paddingBottom: 48, backgroundColor: colors.canvas },
-  stack: { gap: spacing.md, marginTop: 56 }, eyebrow: { color: colors.forest, fontSize: 12, letterSpacing: 1.8, fontWeight: '700' },
+  stack: { gap: spacing.md, marginTop: 56 }, stackCompact: { gap: spacing.md }, eyebrow: { color: colors.forest, fontSize: 12, letterSpacing: 1.8, fontWeight: '700' },
   kicker: { color: colors.gold, fontSize: 14, fontWeight: '700' }, title: { color: colors.ink, fontSize: 42, lineHeight: 48, fontWeight: '600', letterSpacing: -1.2 },
   body: { color: colors.muted, fontSize: 17, lineHeight: 27 }, quiet: { color: colors.muted, fontSize: 13, textAlign: 'center' }, meta: { color: colors.muted, fontSize: 13, fontWeight: '600' },
   note: { backgroundColor: colors.forestSoft, borderRadius: radius.md, padding: spacing.md }, noteText: { color: colors.forest, fontSize: 14, lineHeight: 21 },

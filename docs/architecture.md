@@ -53,6 +53,12 @@ Explicit fit feedback is the durable learning authority. Passive opens, skips, a
 
 Optional deeper analysis uses specific, revocable, single-use consent. The exact reflection must pass local safety screening immediately before submission, and the feature fails closed unless a current assurance proves zero training, zero persistent retention, disabled payload logging, contractual review, and technical verification. No provider is configured. See [the learning and analysis boundary](privacy/learning-and-analysis.md).
 
+### Phase 8 release-evidence boundary
+
+Developer build, internal alpha, Nigeria closed beta, and public release are separate evidence targets. A successful build cannot satisfy content, safety, privacy, legal, accessibility, device, or participant gates. Evidence records require an owner, immutable artifact digest, review time, status, and optional expiry; malformed, duplicate, failed, withdrawn, expired, or missing evidence blocks release.
+
+Rollout proceeds one stage at a time and returns to staff-only on critical content, safety, privacy, resource-verification, deletion, or crash-health failures. Migration and performance harnesses fail closed, and real-device performance cannot be inferred from simulators. See [Nigeria alpha readiness](release/nigeria-alpha-readiness.md).
+
 ## Safety model
 
 Any free-text surface must pass through an on-device safety interface before encryption or sync. A high-risk result pauses the Scripture journey and presents manually verified Nigerian crisis and pastoral resources. The journey resumes only after the user confirms they are safe, beginning with reviewed comfort content.

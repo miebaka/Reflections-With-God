@@ -8,7 +8,8 @@ export function PrimaryButton({ label, onPress, disabled = false }: {
   disabled?: boolean;
 }) {
   return (
-    <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress}
+    <Pressable accessibilityRole="button" accessibilityLabel={label}
+      accessibilityState={{ disabled }} disabled={disabled} onPress={onPress}
       style={[styles.button, disabled && styles.disabled]}>
       <Text style={styles.label}>{label}</Text>
     </Pressable>

@@ -8,7 +8,8 @@ export function SelectionChip({ label, selected, onPress }: {
   onPress: () => void;
 }) {
   return (
-    <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: selected }} onPress={onPress}
+    <Pressable accessibilityRole="checkbox" accessibilityLabel={label}
+      accessibilityState={{ checked: selected }} onPress={onPress}
       style={[styles.chip, selected && styles.selected]}>
       <Text style={[styles.label, selected && styles.selectedLabel]}>{selected ? `✓ ${label}` : label}</Text>
     </Pressable>
