@@ -42,6 +42,21 @@ describe('application session reducer', () => {
     })).toMatchObject({ screen: 'day-closed', journey: { status: 'closed' } });
   });
 
+  it('reconciles due moments and records only explicit completion', () => {
+    const adult = reduceAppSession(initialAppSession(), { type: 'attest-adult' });
+    const withDraft = reduceAppSession(adult, { type: 'update-draft', draft: confirmedSadDraft() });
+    const started = reduceAppSession(withDraft, {
+      type: 'confirm-direction', now: new Date(2026, 9, 27, 8, 0),
+    });
+    const reconciled = reduceAppSession(started, {
+      type: 'reconcile-clock', now: new Date(2026, 9, 27, 8, 35),
+    });
+    const current = reconciled.journey?.units.find(({ id }) => id.endsWith('-8-30'));
+    expect(current?.state).toBe('available');
+    const completed = reduceAppSession(reconciled, { type: 'complete-unit', unitId: current!.id });
+    expect(completed.journey?.units.find(({ id }) => id === current!.id)?.state).toBe('completed');
+  });
+
   it('resets every in-memory private field', () => {
     const adult = reduceAppSession(initialAppSession(), { type: 'attest-adult' });
     const withDraft = reduceAppSession(adult, { type: 'update-draft', draft: confirmedSadDraft() });

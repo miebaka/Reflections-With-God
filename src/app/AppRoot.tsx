@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { type Intensity, emotionOptions } from '../domain/checkIn';
+import { type Intensity, emotionOptions, validateCheckIn } from '../domain/checkIn';
 import { developmentScriptureUnit } from '../domain/content';
+import { createDailyRecap, type DailyRecap } from '../domain/recap';
 import type { HealthyDirection } from '../domain/direction';
 import { defaultNotificationSettings, type NotificationMode, type NotificationSettings } from '../domain/notifications';
 import { confirmTimezoneChange, observeTimezone } from '../domain/scheduleRecovery';
@@ -20,11 +21,18 @@ import { createSessionController } from './sessionController';
 import { createAsyncStorageSessionRepository } from '../infrastructure/asyncStorageSessionRepository';
 import { createAsyncStorageNotificationSettings } from '../infrastructure/asyncStorageNotificationSettings';
 import { createExpoNotificationPlatform } from '../infrastructure/expoNotificationPlatform';
+import { createExpoSecureKeyVault } from '../infrastructure/expoSecureKeyVault';
+import { expoRandomBytes } from '../infrastructure/expoRandomBytes';
+import { createEncryptedPrivateHistoryRepository } from '../infrastructure/encryptedPrivateHistoryRepository';
+import { generatePrivateRecordId } from '../privacy/crypto';
 import { synchronizeDailyNotifications, type NotificationSyncResult } from './notificationScheduler';
 
 const sessionController = createSessionController(createAsyncStorageSessionRepository());
 const notificationSettingsRepository = createAsyncStorageNotificationSettings();
 const notificationPlatform = createExpoNotificationPlatform();
+const privateHistoryRepository = createEncryptedPrivateHistoryRepository(
+  createExpoSecureKeyVault(), expoRandomBytes,
+);
 
 const directionCopy: Record<HealthyDirection, { title: string; description: string }> = {
   'acknowledge-and-ground': { title: 'Be met, then grounded', description: 'Name what is real before moving gently toward steadiness.' },
@@ -42,6 +50,13 @@ export function AppRoot() {
   const [pendingTimezone, setPendingTimezone] = useState<string>();
   const [timezoneNote, setTimezoneNote] = useState<string>();
   const [explicitReminderChoice, setExplicitReminderChoice] = useState(false);
+  const [closingDraft, setClosingDraft] = useState(createCheckInDraft);
+  const [activeRecap, setActiveRecap] = useState<DailyRecap>();
+  const [privateHistory, setPrivateHistory] = useState<readonly DailyRecap[]>([]);
+  const [historyVisible, setHistoryVisible] = useState(false);
+  const [historyError, setHistoryError] = useState<string>();
+  const [savingRecap, setSavingRecap] = useState(false);
+  const [stayedWithCurrentPassage, setStayedWithCurrentPassage] = useState(false);
   const persistIntent = useRef<'save' | 'clear'>('save');
   const skippedHydrationWrite = useRef(false);
   const model = getScreenModel(session, now);
@@ -50,6 +65,7 @@ export function AppRoot() {
     ? sadnessSupportFor(session.journey.currentCheckIn) === 'gentle-nudge'
     : false;
   const selections = session.draft.checkIn.kind === 'known' ? session.draft.checkIn.selections : [];
+  const closingSelections = closingDraft.checkIn.kind === 'known' ? closingDraft.checkIn.selections : [];
   const dispatch = (event: Parameters<typeof reduceAppSession>[1]) => {
     persistIntent.current = event.type === 'reset-session' ? 'clear' : 'save';
     setSession((current) => reduceAppSession(current, event));
@@ -103,6 +119,21 @@ export function AppRoot() {
     });
     return () => { clearInterval(interval); subscription.remove(); };
   }, [notificationSettings]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    void privateHistoryRepository.list(new Date()).then((history) => {
+      setPrivateHistory(history);
+      setHistoryError(undefined);
+    }).catch(() => setHistoryError('Private history could not be opened on this device.'));
+  }, [hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    setSession((current) => current.journey
+      ? reduceAppSession(current, { type: 'reconcile-clock', now })
+      : current);
+  }, [hydrated, now]);
 
   useEffect(() => {
     if (!hydrated || !notificationSettings || model.screen !== 'journey' || !session.journey) return;
@@ -164,6 +195,51 @@ export function AppRoot() {
     });
   };
 
+  const finishDay = async () => {
+    if (!session.journey || validateCheckIn(closingDraft.checkIn).length > 0) return;
+    setSavingRecap(true);
+    setHistoryError(undefined);
+    const encountered = session.journey.units.some(({ state }) => state === 'completed')
+      ? [{ contentId: developmentScriptureUnit.id, reference: developmentScriptureUnit.reference }]
+      : [];
+    try {
+      const recap = createDailyRecap({
+        id: generatePrivateRecordId(expoRandomBytes),
+        localDate: session.journey.localDate,
+        createdAt: new Date(),
+        initialCheckIn: session.journey.initialCheckIn,
+        finalCheckIn: closingDraft.checkIn,
+        encounteredPassages: encountered,
+        ...(stayedWithCurrentPassage && encountered.length > 0
+          ? { stayedWithContentId: developmentScriptureUnit.id } : {}),
+      });
+      await privateHistoryRepository.save(recap, '30-days');
+      setPrivateHistory(await privateHistoryRepository.list(new Date()));
+      setActiveRecap(recap);
+    } catch {
+      setHistoryError('Your recap was not saved. Nothing was written as plaintext. Please try again.');
+    } finally {
+      setSavingRecap(false);
+    }
+  };
+
+  const deleteRecap = async (recapId: string) => {
+    try {
+      await privateHistoryRepository.delete(recapId);
+      setPrivateHistory(await privateHistoryRepository.list(new Date()));
+      if (activeRecap?.id === recapId) setActiveRecap(undefined);
+    } catch {
+      setHistoryError('That recap could not be deleted. Please try again.');
+    }
+  };
+
+  const closeRecap = () => {
+    setActiveRecap(undefined);
+    setClosingDraft(createCheckInDraft());
+    setStayedWithCurrentPassage(false);
+    dispatch({ type: 'reset-session' });
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.page}>
       <Text style={styles.eyebrow}>REFLECTIONS WITH GOD</Text>
@@ -201,17 +277,70 @@ export function AppRoot() {
         </View>
       )}
 
-      {hydrated && model.screen === 'welcome' && (
+      {hydrated && historyVisible && !activeRecap && (
+        <View style={styles.stack}>
+          <Text style={styles.kicker}>Private history</Text>
+          <Text accessibilityRole="header" style={styles.title}>Days you chose to keep.</Text>
+          <Text style={styles.body}>Recaps are encrypted on this device. Gaps are simply days without a saved recap.</Text>
+          {historyError && <View style={styles.notice} accessibilityLiveRegion="polite"><Text style={styles.noticeText}>{historyError}</Text></View>}
+          {privateHistory.length === 0 && <Text style={styles.body}>No saved recaps yet.</Text>}
+          {privateHistory.map((recap) => (
+            <View key={recap.id} style={styles.historyCard}>
+              <Text style={styles.meta}>{formatHistoryDate(recap.localDate)}</Text>
+              <Text style={styles.body}>{recap.comparison}</Text>
+              <Pressable accessibilityRole="button" onPress={() => { setActiveRecap(recap); setHistoryVisible(false); }}>
+                <Text style={styles.textButton}>Open this recap</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" accessibilityHint="Permanently removes this encrypted recap from this device"
+                onPress={() => { void deleteRecap(recap.id); }}>
+                <Text style={styles.deleteButton}>Delete recap</Text>
+              </Pressable>
+            </View>
+          ))}
+          <PrimaryButton label="Back" onPress={() => setHistoryVisible(false)} />
+        </View>
+      )}
+
+      {hydrated && activeRecap && (
+        <View style={styles.stack}>
+          <Text style={styles.kicker}>Your day in reflection</Text>
+          <Text accessibilityRole="header" style={styles.title}>{formatHistoryDate(activeRecap.localDate)}</Text>
+          <Text style={styles.body}>{activeRecap.comparison}</Text>
+          <View style={styles.rule} />
+          <Text style={styles.prompt}>Passages encountered</Text>
+          {activeRecap.encounteredPassages.length === 0
+            ? <Text style={styles.body}>No passage was marked complete. Nothing has been inferred.</Text>
+            : activeRecap.encounteredPassages.map((passage) => (
+              <Text key={passage.contentId} style={styles.reference}>{passage.reference}</Text>
+            ))}
+          {activeRecap.stayedWithContentId && (
+            <Text style={styles.body}>You chose this passage as the one that stayed with you. You may revisit it without needing to complete anything else.</Text>
+          )}
+          <Text style={styles.quiet}>Encrypted on this device · Default retention: 30 days</Text>
+          {session.journey ? (
+            <PrimaryButton label="Let the day end" onPress={closeRecap} />
+          ) : (
+            <PrimaryButton label="Back to history" onPress={() => { setActiveRecap(undefined); setHistoryVisible(true); }} />
+          )}
+        </View>
+      )}
+
+      {hydrated && !historyVisible && !activeRecap && model.screen === 'welcome' && (
         <View style={styles.stack}>
           <Text accessibilityRole="header" style={styles.title}>Meet this day with Scripture.</Text>
           <Text style={styles.body}>Begin with how you honestly feel. Scripture, reflection, and prayer will meet the day gently.</Text>
           <View style={styles.note}><Text style={styles.noteText}>For adults 18 and over. Spiritual support—not therapy, diagnosis, crisis care, prophecy, or a replacement for church or professional care.</Text></View>
           <PrimaryButton label="I’m 18 or older — begin" onPress={() => dispatch({ type: 'attest-adult' })} />
+          {privateHistory.length > 0 && (
+            <Pressable accessibilityRole="button" onPress={() => { dispatch({ type: 'attest-adult' }); setHistoryVisible(true); }}>
+              <Text style={styles.textButton}>I’m 18 or older — view private history</Text>
+            </Pressable>
+          )}
           <Text style={styles.quiet}>Saved on this device for today · No streaks · No scores</Text>
         </View>
       )}
 
-      {hydrated && model.screen === 'check-in' && (
+      {hydrated && !historyVisible && !activeRecap && model.screen === 'check-in' && (
         <View style={styles.stack}>
           <Text style={styles.kicker}>Morning check-in</Text>
           <Text accessibilityRole="header" style={styles.title}>What are you carrying today?</Text>
@@ -243,7 +372,7 @@ export function AppRoot() {
         </View>
       )}
 
-      {hydrated && model.screen === 'direction' && session.draft.proposedDirection && (
+      {hydrated && !historyVisible && !activeRecap && model.screen === 'direction' && session.draft.proposedDirection && (
         <View style={styles.stack}>
           <Text style={styles.kicker}>A gentle direction</Text>
           <Text accessibilityRole="header" style={styles.title}>How should Scripture meet you today?</Text>
@@ -266,7 +395,7 @@ export function AppRoot() {
         </View>
       )}
 
-      {hydrated && model.screen === 'journey' && (
+      {hydrated && !historyVisible && !activeRecap && model.screen === 'journey' && (
         <View style={styles.stack}>
           {model.notices.map((notice) => <View key={notice} style={styles.notice}><Text style={styles.noticeText}>{notice}</Text></View>)}
           {showStrongSadnessSupport && (
@@ -284,6 +413,10 @@ export function AppRoot() {
               <Text style={styles.prompt}>{developmentScriptureUnit.reflectionPrompt}</Text>
               <Text style={styles.prayer}>{developmentScriptureUnit.prayer}</Text>
               <View style={styles.note}><Text style={styles.noteText}>Development fixture only. It cannot ship until licensing and pastor, scholar, safety, and final approvals are recorded.</Text></View>
+              {model.timeline.current && (
+                <PrimaryButton label="Mark this Scripture moment complete"
+                  onPress={() => dispatch({ type: 'complete-unit', unitId: model.timeline.current!.id })} />
+              )}
             </>
           ) : (
             <>
@@ -313,12 +446,45 @@ export function AppRoot() {
         </View>
       )}
 
-      {hydrated && model.screen === 'day-closed' && (
+      {hydrated && !historyVisible && !activeRecap && model.screen === 'day-closed' && (
         <View style={styles.stack}>
-          <Text style={styles.kicker}>Day complete</Text>
-          <Text accessibilityRole="header" style={styles.title}>{model.title}</Text>
-          <Text style={styles.body}>{model.message}</Text>
-          <PrimaryButton label="Return to welcome" onPress={() => dispatch({ type: 'reset-session' })} />
+          <Text style={styles.kicker}>Final check-in</Text>
+          <Text accessibilityRole="header" style={styles.title}>How are you closing the day?</Text>
+          <Text style={styles.body}>Choose up to three feelings, or continue without forcing a label. This comparison is descriptive, not a score.</Text>
+          <Text style={styles.meta}>{closingSelections.length} of 3 selected</Text>
+          <View style={styles.chips}>
+            {emotionOptions.map((emotion) => (
+              <SelectionChip key={emotion} label={emotion}
+                selected={closingSelections.some((item) => item.emotion === emotion)}
+                onPress={() => setClosingDraft((current) => toggleDraftEmotion(current, emotion))} />
+            ))}
+          </View>
+          {closingSelections.map(({ emotion, intensity }) => (
+            <View key={emotion} style={styles.intensityCard}>
+              <Text style={styles.meta}>How strongly do you feel {emotion}?</Text>
+              <View accessibilityRole="radiogroup" accessibilityLabel={`Final intensity for ${emotion}`} style={styles.segmented}>
+                {(['mild', 'moderate', 'strong'] as const).map((value) => (
+                  <Pressable accessibilityRole="radio" accessibilityState={{ selected: intensity === value }} key={value}
+                    onPress={() => setClosingDraft((current) => setDraftIntensity(current, emotion, value))}
+                    style={[styles.segment, intensity === value && styles.segmentSelected]}>
+                    <Text style={intensity === value ? styles.segmentTextSelected : styles.segmentText}>{intensity === value ? `✓ ${value}` : value}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          ))}
+          {session.journey?.units.some(({ state }) => state === 'completed') && (
+            <SelectionChip label={`${developmentScriptureUnit.reference} stayed with me`}
+              selected={stayedWithCurrentPassage} onPress={() => setStayedWithCurrentPassage((value) => !value)} />
+          )}
+          {historyError && <View style={styles.notice} accessibilityLiveRegion="polite"><Text style={styles.noticeText}>{historyError}</Text></View>}
+          <PrimaryButton label={savingRecap ? 'Saving encrypted recap…' : 'Create my private recap'}
+            disabled={savingRecap || validateCheckIn(closingDraft.checkIn).length > 0}
+            onPress={() => { void finishDay(); }} />
+          <Pressable accessibilityRole="button" onPress={() => setClosingDraft(selectUnknownMood(closingDraft))}>
+            <Text style={styles.textButton}>I don’t know how I feel</Text>
+          </Pressable>
+          <Text style={styles.quiet}>The recap is encrypted before it is stored. No reflection text is required.</Text>
         </View>
       )}
     </ScrollView>
@@ -358,4 +524,12 @@ const styles = StyleSheet.create({
   scripture: { color: colors.ink, fontSize: 32, lineHeight: 43, fontWeight: '500' }, rule: { width: 48, height: 2, backgroundColor: colors.gold, marginVertical: spacing.sm },
   prompt: { color: colors.ink, fontSize: 19, lineHeight: 29, fontWeight: '600' }, prayer: { color: colors.muted, fontSize: 16, lineHeight: 26, fontStyle: 'italic' },
   reminderPanel: { gap: spacing.sm, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: spacing.lg, marginTop: spacing.md },
+  historyCard: { gap: spacing.sm, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, padding: spacing.md, backgroundColor: colors.surface },
+  deleteButton: { minHeight: 44, color: colors.danger, fontSize: 15, fontWeight: '700', textAlign: 'center', padding: spacing.sm },
 });
+
+function formatHistoryDate(localDate: string): string {
+  return new Date(`${localDate}T12:00:00`).toLocaleDateString([], {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+  });
+}

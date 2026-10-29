@@ -1,5 +1,6 @@
 import { createEmotionalArc } from '../domain/arc';
-import { createDailyJourney, type DailyJourney } from '../domain/journey';
+import { advanceJourney, createDailyJourney, type DailyJourney } from '../domain/journey';
+import { reconcileJourneyClock } from '../domain/scheduleRecovery';
 import {
   canSubmitCheckIn,
   createCheckInDraft,
@@ -21,6 +22,8 @@ export type AppEvent =
   | { type: 'show-direction' }
   | { type: 'show-check-in' }
   | { type: 'confirm-direction'; now: Date }
+  | { type: 'reconcile-clock'; now: Date }
+  | { type: 'complete-unit'; unitId: string }
   | { type: 'reset-session' };
 
 export function initialAppSession(): AppSession {
@@ -34,6 +37,18 @@ export function reduceAppSession(session: AppSession, event: AppEvent): AppSessi
     return { ...session, adultAttested: true, screen: 'check-in' };
   }
   if (!session.adultAttested) return session;
+
+  if (event.type === 'reconcile-clock') {
+    if (!session.journey) return session;
+    const journey = reconcileJourneyClock(session.journey, event.now);
+    return journey === session.journey ? session : { ...session, journey };
+  }
+  if (event.type === 'complete-unit') {
+    if (!session.journey) return session;
+    const opened = advanceJourney(session.journey, { type: 'open', unitId: event.unitId });
+    const journey = advanceJourney(opened, { type: 'complete', unitId: event.unitId });
+    return journey === session.journey ? session : { ...session, journey };
+  }
 
   if (event.type === 'update-draft') {
     if (session.journey) return session;

@@ -59,6 +59,12 @@ Developer build, internal alpha, Nigeria closed beta, and public release are sep
 
 Rollout proceeds one stage at a time and returns to staff-only on critical content, safety, privacy, resource-verification, deletion, or crash-health failures. Migration and performance harnesses fail closed, and real-device performance cannot be inferred from simulators. See [Nigeria alpha readiness](release/nigeria-alpha-readiness.md).
 
+### Encrypted recap and local history integration
+
+The app now reconciles newly due moments and records a passage only after the user explicitly marks the moment complete. At day close it requests a final structured mood check, produces neutral non-causal comparison language, and highlights a passage only when the user explicitly says it stayed with them.
+
+Recaps exist in plaintext only in application memory. Before AsyncStorage receives them, a device-generated history key from Expo SecureStore encrypts an authenticated private record. The local history registry contains only ciphertext envelopes; reads, expiry, saves, and deletes share a serialized queue. Cloud sync remains disabled, default local retention is 30 days, and loss of the device/key makes this local history unrecoverable. No free-writing or editable-prayer surface is enabled by this slice.
+
 ## Safety model
 
 Any free-text surface must pass through an on-device safety interface before encryption or sync. A high-risk result pauses the Scripture journey and presents manually verified Nigerian crisis and pastoral resources. The journey resumes only after the user confirms they are safe, beginning with reviewed comfort content.
