@@ -41,6 +41,12 @@ Timezone changes are detected against the saved IANA timezone and require confir
 
 The offline outbox permits only allow-listed structured check-ins and fit feedback. Stable IDs deduplicate retries, acknowledgements remove only confirmed actions, and a monotonic single-value compare-and-swap protects local updates. Raw reflections, prayer edits, Scripture text, and arbitrary fields are rejected. This is a local queue boundary, not cloud synchronization.
 
+### Phase 6 private-history boundary
+
+Private records now have an authenticated encryption envelope, generated recovery secret, trusted-device wrapping model, secure key-vault adapter, retention tombstones, local key rotation, and a ciphertext-only sync contract. Revoking a device suspends sync until the history key advances. The transport has no plaintext-shaped method and rejects unknown fields at runtime.
+
+This foundation does not connect a production account or cloud service and has not completed independent cryptographic, legal, deletion, recovery-usability, or penetration review. Those remain external-alpha blockers. See [the encryption boundary](privacy/encryption-boundary.md).
+
 ## Safety model
 
 Any free-text surface must pass through an on-device safety interface before encryption or sync. A high-risk result pauses the Scripture journey and presents manually verified Nigerian crisis and pastoral resources. The journey resumes only after the user confirms they are safe, beginning with reviewed comfort content.

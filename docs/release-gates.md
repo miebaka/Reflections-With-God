@@ -19,6 +19,8 @@ These are blockers, not aspirational backlog items.
 - [ ] Retention options and permanent deletion are verified end to end.
 - [ ] Analytics payload tests prove that private text cannot be emitted.
 - [ ] Any external AI analysis is explicit opt-in, zero-training, zero-retention, and disabled when those guarantees are unavailable.
+- [ ] Independent threat-model and cryptographic review, recovery-usability testing, penetration testing, and Nigerian privacy/legal review pass.
+- [ ] High-severity production dependency advisories are remediated or explicitly accepted with a documented reachability analysis; do not apply audit fixes that downgrade the Expo SDK.
 
 ## Safety
 
